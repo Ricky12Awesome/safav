@@ -1,0 +1,19 @@
+[package]
+name = "safav"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cpal = "0.14.0"
+thiserror = "1.0.37"
+
+[dependencies.serde]
+version = "1.0.145"
+optional = true
+
+[dev-dependencies]
+colored = "2.0.0"
+palette = "0.6.1"
+termsize = "0.1.6"
