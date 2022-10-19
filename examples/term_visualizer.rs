@@ -1,8 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
-use std::thread::sleep;
-use std::time::Duration;
 
 use colored::Color;
 use palette::rgb::Rgb;
@@ -12,9 +10,10 @@ use safav::{DeviceManager, PollingStream};
 
 const ESC: char = '\x1b';
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 struct Grid<'a> {
-  pixels: Vec<Vec<Color>>,
+  pixels: Vec<Vec<Option<Color>>>,
+  color: Color,
   width: usize,
   height: usize,
   pixel: &'a str,
@@ -23,33 +22,53 @@ struct Grid<'a> {
 impl<'a> Grid<'a> {
   fn new(width: usize, height: usize, pixel: &'a str, color: Color) -> Self {
     Self {
-      pixels: vec![vec![color; width]; height],
+      pixels: vec![vec![Some(color); width]; height],
+      color,
       width,
       height,
       pixel,
     }
   }
 
+  fn clear(&mut self) {
+    self.pixels = vec![vec![Some(self.color); self.width]; self.height];
+  }
+
+  fn update_size(&mut self, width: usize, height: usize) {
+    self.width = width;
+    self.height = height;
+    self.clear();
+  }
+
   fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
     let y = y.min(self.height.saturating_sub(1));
     let x = x.min(self.width.saturating_sub(1));
 
-    self.pixels[y][x] = color;
+    self.pixels[y][x] = Some(color);
   }
 
-  fn render(&self) -> std::io::Result<()> {
+  fn render(&mut self) -> std::io::Result<()> {
     let mut out = stdout();
 
     out.write_all(format!("{ESC}[{}u", self.width).as_bytes())?;
     out.write_all(format!("{ESC}[{}t", self.height).as_bytes())?;
+    out.write_all(format!("{ESC}[?25l").as_bytes())?;
 
-    for (y, line) in self.pixels.iter().enumerate() {
+    for (y, line) in self.pixels.iter_mut().enumerate() {
       let y = y + 1;
-      for (x, color) in line.iter().enumerate() {
+      for (x, color) in line.iter_mut().enumerate() {
         let x = x + 1;
-        let fg = color.to_fg_str();
 
-        out.write_all(format!("{ESC}[{y};{x}H{ESC}[{fg}m{}", self.pixel).as_bytes())?;
+        if let Some(c) = color {
+          let fg = c.to_fg_str();
+          out.write_all(format!("{ESC}[{y};{x}H{ESC}[{fg}m{}", self.pixel).as_bytes())?;
+
+          if matches!(color, Some(c) if *c == self.color) {
+            *color = None;
+          } else {
+            *color = Some(self.color);
+          }
+        }
       }
 
       if y < self.height {
@@ -64,21 +83,6 @@ impl<'a> Grid<'a> {
   }
 }
 
-impl<'a> Display for Grid<'a> {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    for y in &self.pixels {
-      for color in y {
-        let fg = color.to_fg_str();
-        write!(f, "{ESC}[{fg}m{}", self.pixel)?;
-      }
-
-      writeln!(f)?;
-    }
-
-    Ok(())
-  }
-}
-
 fn main() -> safav::Result<()> {
   let manager = DeviceManager::new()?;
   let device = manager.default_loopback_device().unwrap();
@@ -86,13 +90,18 @@ fn main() -> safav::Result<()> {
 
   stream.change_to(device)?;
 
+  let mut grid = Grid::new(0, 0, "█", Color::Black);
+  let mut max = 0.0;
+
   loop {
     let values = stream.poll();
     let termsize::Size { rows, cols } = termsize::get().unwrap();
     let rows = rows as usize;
     let cols = cols as usize;
 
-    let mut grid = Grid::new(cols, rows, "█", Color::Black);
+    if grid.width != cols || grid.height != rows {
+      grid.update_size(cols, rows);
+    }
 
     let size = values.len() / cols;
 
@@ -100,10 +109,14 @@ fn main() -> safav::Result<()> {
       continue;
     }
 
-    let max = values
+    let new_max = *values
       .iter()
       .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
       .unwrap();
+
+    if new_max > max {
+      max = new_max;
+    }
 
     let values = values
       .chunks(size)
@@ -124,10 +137,10 @@ fn main() -> safav::Result<()> {
       grid.set_pixel(index, y, color);
     }
 
-    // print!("{ESC}[H{}", grid);
     grid.render()?;
-    // stdout().flush().unwrap();
 
     // sleep(Duration::from_millis(1000 / 60));
   }
+
+  Ok(())
 }
