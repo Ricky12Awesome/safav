@@ -1,8 +1,4 @@
-use std::io::Write;
-use cpal::traits::StreamTrait;
 use safav::DeviceManager;
-use std::thread::sleep;
-use std::time::Duration;
 
 fn main() -> safav::Result<()> {
   let manager = DeviceManager::new()?;
@@ -16,20 +12,18 @@ fn main() -> safav::Result<()> {
       .collect::<Vec<_>>()
   );
 
-  let device = manager.default_loopback_device().unwrap();
+  let input = manager.default_input_device();
+  let output = manager.default_loopback_device();
 
-  println!("Default [{:?}]: {}", device.source(), device.name());
+  match input {
+    None => println!("No default input device found"),
+    Some(device) => println!("Default [{:?}]: {}", device.source(), device.name()),
+  }
 
-  let stream = device.build_stream(
-    |data, _| {
-      print!("{} ", data.iter().sum::<f32>());
-      let _ = std::io::stdout().flush();
-    },
-    |err| eprintln!("{err}"),
-  )?;
+  match output {
+    None => println!("No default output (loopback) device found"),
+    Some(device) => println!("Default [{:?}]: {}", device.source(), device.name()),
+  }
 
-  stream.play()?;
-
-  sleep(Duration::from_secs(5));
   Ok(())
 }

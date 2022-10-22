@@ -12,3 +12,6 @@ thiserror = "1.0.37"
 [dependencies.serde]
 version = "1.0.145"
 optional = true
+
+[workspace]
+members = ["examples/term_visualizer"]
