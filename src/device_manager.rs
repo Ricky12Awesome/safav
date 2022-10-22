@@ -8,7 +8,6 @@ use crate::device::{DeviceSource, NamedDevice};
 pub struct DeviceManager {
   host: Host,
   devices: Vec<NamedDevice>,
-  current_device_index: usize,
 }
 
 fn filter_device(device: Device) -> Option<NamedDevice> {
@@ -50,7 +49,6 @@ impl DeviceManager {
     Ok(Self {
       host,
       devices,
-      current_device_index: 0,
     })
   }
 

@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use cpal::traits::StreamTrait;
 
-use crate::{NamedDevice, Result, Stream};
+use crate::{Error, NamedDevice, Result, Stream};
 
 /// Polling-based stream, can run in a background thread
 /// and in other threads you poll data
@@ -58,5 +58,40 @@ impl PollingStream {
     }
 
     self.buf.borrow()
+  }
+}
+
+impl Default for PollingStream {
+  /// Creates a new [PollingStream] using a capacity of 1024
+  fn default() -> Self {
+    Self::new(1024)
+  }
+}
+
+impl TryFrom<&NamedDevice> for PollingStream {
+  type Error = Error;
+
+  /// Creates a new [PollingStream] that automatically starts using [NamedDevice]
+  ///
+  /// **Example**
+  /// ```rs
+  /// let stream = PollingStream::try_from(&device)?;
+  ///
+  /// // ...
+  /// let data = stream.poll();
+  ///
+  /// ```
+  /// is the same as
+  /// ```rs
+  /// let mut stream = PollingStream::default();
+  /// stream.change_to(device)?;
+  ///
+  /// // ...
+  /// let data = stream.poll();
+  ///
+  fn try_from(device: &NamedDevice) -> std::result::Result<Self, Self::Error> {
+    let mut stream = PollingStream::default();
+    stream.change_to(device)?;
+    Ok(stream)
   }
 }
