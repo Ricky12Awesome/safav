@@ -13,7 +13,7 @@ pub(crate) mod platform {
   #[cfg(windows)]
   pub use windows::*;
   #[cfg(target_os = "linux")]
-  pub use windows::*;
+  pub use linux::*;
 
   #[cfg(windows)]
   pub mod windows {

@@ -1,10 +1,9 @@
 use cpal::SampleFormat;
-use cpal::traits::HostTrait;
+use cpal::traits::{DeviceTrait, HostTrait};
 
 use crate::{Device, Host, Result};
 use crate::device::{DeviceSource, NamedDevice};
 
-#[derive(Debug)]
 pub struct DeviceManager {
   host: Host,
   devices: Vec<NamedDevice>,
@@ -16,17 +15,19 @@ fn filter_device(device: Device) -> Option<NamedDevice> {
   let input = device.default_input_config();
   let output = device.default_output_config();
   let is_input = input.is_ok();
-  let supported = input.or(output).unwrap();
+  let is_output = output.is_ok();
+  let supported = input.or(output).ok()?;
 
   if !(supported.channels() == 2 && supported.sample_format() == SampleFormat::F32) {
     return None;
   }
 
   let config = supported.config();
-  let source = if is_input {
-    DeviceSource::Input
-  } else {
-    DeviceSource::Output
+  let source = match () {
+    _ if is_input && is_output => DeviceSource::Both,
+    _ if is_input => DeviceSource::Input,
+    _ if is_output => DeviceSource::Output,
+    _ => unreachable!()
   };
 
   Some(NamedDevice {

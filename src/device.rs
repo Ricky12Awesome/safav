@@ -7,9 +7,9 @@ use crate::{Device, Result, Stream};
 pub enum DeviceSource {
   Input,
   Output,
+  Both
 }
 
-#[derive(Debug, Clone)]
 pub struct NamedDevice {
   pub(crate) name: String,
   pub(crate) source: DeviceSource,
