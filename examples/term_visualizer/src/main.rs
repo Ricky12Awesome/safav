@@ -5,7 +5,7 @@ use colored::Color;
 use palette::rgb::Rgb;
 use palette::{FromColor, Hsl, RgbHue};
 
-use safav::{DeviceManager, PollingStream};
+use safav::{LinuxHost, PollingStream};
 
 const ESC: char = '\x1b';
 
@@ -83,7 +83,7 @@ impl<'a> Grid<'a> {
 }
 
 fn main() -> safav::Result<()> {
-  let manager = DeviceManager::new()?;
+  let manager = LinuxHost::new()?;
   let device = manager.default_loopback_device().unwrap();
   let mut stream = PollingStream::new(1024);
 
