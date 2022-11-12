@@ -1,9 +1,9 @@
-use cpal::{Host, HostId, Stream};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use pulsectl::controllers::{AppControl, DeviceControl, SourceController};
+use cpal::{Host, HostId, Stream};
 use pulsectl::controllers::types::ApplicationInfo;
+use pulsectl::controllers::{AppControl, DeviceControl, SourceController};
 
-use crate::{Device, Error, get_application_name, Listeners, Result};
+use crate::{get_application_name, Device, Error, Listeners, Result};
 
 pub struct LinuxHost {
   pub(crate) host: Host,
@@ -73,12 +73,9 @@ impl LinuxHost {
 
     let config = device.default_input_config()?.config();
 
-    #[rustfmt::skip]
-    let stream = device.build_input_stream(
-      &config,
-      self.listeners.data_callback(),
-      |err| eprintln!("{err}")
-    )?;
+    let data_cb = self.listeners.data_callback();
+    let err_cb = |err| eprintln!("{err}");
+    let stream = device.build_input_stream(&config, data_cb, err_cb)?;
 
     stream.play()?;
 

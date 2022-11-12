@@ -18,14 +18,17 @@ fn main() -> safav::Result<()> {
 
   host.listen()?;
 
-  sleep(Duration::from_secs(20));
+  for _ in 0..100 {
+    println!("{}", test.buf.read().unwrap().iter().sum::<f32>());
+    sleep(Duration::from_millis(50));
+  }
 
   Ok(())
 }
 
 #[derive(Default)]
 struct Test {
-  buf: Arc<RwLock<Vec<f32>>>
+  buf: Arc<RwLock<Vec<f32>>>,
 }
 
 impl Listener for Test {
@@ -37,8 +40,7 @@ impl Listener for Test {
 
       buf.resize(data.len(), 0.0);
       buf.copy_from_slice(data);
-
-      println!("{}", data.iter().sum::<f32>());
+      // println!("{}", data.iter().sum::<f32>());
     })
   }
 }

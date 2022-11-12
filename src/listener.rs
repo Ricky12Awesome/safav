@@ -32,7 +32,7 @@ impl Listeners {
     Self::default()
   }
 
-  pub fn push(&self, id: &'static str, handle: DataCallback) -> Result<()> {
+  pub fn push(&mut self, id: &'static str, handle: DataCallback) -> Result<()> {
     let mut listeners = self.listeners.write().unwrap();
 
     if listeners.contains_key(id) {
@@ -44,7 +44,7 @@ impl Listeners {
     Ok(())
   }
 
-  pub fn remove(&self, id: &'static str) {
+  pub fn remove(&mut self, id: &'static str) {
     let mut listeners = self.listeners.write().unwrap();
 
     listeners.remove(id);
