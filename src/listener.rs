@@ -1,3 +1,4 @@
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -60,5 +61,55 @@ impl Listeners {
         (listener.callback)(data, info);
       }
     }
+  }
+}
+
+pub struct PollingListener {
+  handle: Arc<RwLock<Vec<f32>>>,
+  buf: RefCell<Vec<f32>>,
+}
+
+impl PollingListener {
+  /// Creates a new [PollingListener] using a custom capacity
+  ///
+  /// capacity is used in 2 buffers of `Vec<f32>`,
+  pub fn new(capacity: usize) -> Self {
+    Self {
+      handle: Arc::new(RwLock::new(Vec::with_capacity(capacity))),
+      buf: RefCell::new(Vec::with_capacity(capacity)),
+    }
+  }
+
+  pub fn poll(&self) -> Ref<Vec<f32>> {
+    let handle = self.handle.try_read();
+
+    if let Ok(handle) = handle {
+      let mut buf = self.buf.borrow_mut();
+
+      buf.resize(handle.len(), 0.);
+      buf.copy_from_slice(&handle);
+    }
+
+    self.buf.borrow()
+  }
+}
+
+impl Listener for PollingListener {
+  fn callback(&self) -> DataCallback {
+    let handle = self.handle.clone();
+
+    DataCallback::new(move |data: &[f32], _: &_| {
+      let mut handle = handle.write().unwrap();
+
+      handle.resize(data.len(), 0.);
+      handle.copy_from_slice(data);
+    })
+  }
+}
+
+impl Default for PollingListener {
+  /// Creates a new [PollingListener] using a capacity of 1024
+  fn default() -> Self {
+    Self::new(1024)
   }
 }
