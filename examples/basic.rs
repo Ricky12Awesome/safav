@@ -1,7 +1,8 @@
+use std::sync::{Arc, RwLock};
 use std::thread::sleep;
 use std::time::Duration;
 
-use safav::{Host, InputCallbackInfo, Listener};
+use safav::{DataCallback, Host, Listener};
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
@@ -11,7 +12,9 @@ fn main() -> safav::Result<()> {
     println!("{dev}");
   }
 
-  host.listeners().push("test", Test)?;
+  let test = Test::default();
+
+  host.listeners().push("test", test.callback())?;
 
   host.listen()?;
 
@@ -20,10 +23,22 @@ fn main() -> safav::Result<()> {
   Ok(())
 }
 
-struct Test;
+#[derive(Default)]
+struct Test {
+  buf: Arc<RwLock<Vec<f32>>>
+}
 
 impl Listener for Test {
-  fn listen(&mut self, _data: &[f32], _: &InputCallbackInfo) {
-    // println!("{}", data.iter().sum::<f32>())
+  fn callback(&self) -> DataCallback {
+    let buf = self.buf.clone();
+
+    DataCallback::new(move |data, _| {
+      let mut buf = buf.write().unwrap();
+
+      buf.resize(data.len(), 0.0);
+      buf.copy_from_slice(data);
+
+      println!("{}", data.iter().sum::<f32>());
+    })
   }
 }

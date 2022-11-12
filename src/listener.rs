@@ -5,13 +5,26 @@ pub use cpal::InputCallbackInfo;
 
 use crate::{Error, Result};
 
-pub trait Listener: Sync + Send + 'static {
-  fn listen(&mut self, data: &[f32], info: &InputCallbackInfo);
+pub struct DataCallback {
+  #[allow(clippy::type_complexity)]
+  callback: Box<dyn FnMut(&[f32], &InputCallbackInfo) + Send + Sync + 'static>,
+}
+
+impl DataCallback {
+  pub fn new(callback: impl FnMut(&[f32], &InputCallbackInfo) + Send + Sync + 'static) -> Self {
+    Self {
+      callback: Box::new(callback),
+    }
+  }
+}
+
+pub trait Listener {
+  fn callback(&self) -> DataCallback;
 }
 
 #[derive(Default)]
 pub struct Listeners {
-  listeners: Arc<RwLock<HashMap<&'static str, Box<dyn Listener>>>>,
+  listeners: Arc<RwLock<HashMap<&'static str, DataCallback>>>,
 }
 
 impl Listeners {
@@ -19,14 +32,14 @@ impl Listeners {
     Self::default()
   }
 
-  pub fn push(&self, id: &'static str, listener: impl Listener) -> Result<()> {
+  pub fn push(&self, id: &'static str, handle: DataCallback) -> Result<()> {
     let mut listeners = self.listeners.write().unwrap();
 
     if listeners.contains_key(id) {
       return Err(Error::ListenerAlreadyExists(String::from(id)));
     }
 
-    listeners.insert(id, Box::new(listener));
+    listeners.insert(id, handle);
 
     Ok(())
   }
@@ -44,7 +57,7 @@ impl Listeners {
       let mut listeners = handle.write().unwrap();
 
       for listener in listeners.values_mut() {
-        listener.listen(data, info)
+        (listener.callback)(data, info);
       }
     }
   }
