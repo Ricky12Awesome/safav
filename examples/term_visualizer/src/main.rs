@@ -85,10 +85,7 @@ fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
   let listener = PollingListener::default();
 
-  host.listeners().push("poll", listener.callback())?;
-
-  let mut grid = Grid::new(0, 0, "█", Color::Black);
-  let mut max = 0.0;
+  host.listeners().insert("poll", listener.callback())?;
 
   let select = inquire::Select::new("Select Device", host.devices().clone())
     .prompt()
@@ -96,6 +93,9 @@ fn main() -> safav::Result<()> {
 
   host.change_device(&select)?;
   host.listen()?;
+
+  let mut grid = Grid::new(0, 0, "█", Color::Black);
+  let mut max = 0.0;
 
   loop {
     let values = listener.poll();

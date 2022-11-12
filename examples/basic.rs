@@ -14,7 +14,7 @@ fn main() -> safav::Result<()> {
 
   let polling = PollingListener::default();
 
-  host.listeners().push("test", polling.callback())?;
+  host.listeners().insert("test", polling.callback())?;
 
   host.listen()?;
 

@@ -1,6 +1,6 @@
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub use cpal::InputCallbackInfo;
 
@@ -25,7 +25,7 @@ pub trait Listener {
 
 #[derive(Default)]
 pub struct Listeners {
-  listeners: Arc<RwLock<HashMap<&'static str, DataCallback>>>,
+  listeners: Arc<Mutex<HashMap<&'static str, DataCallback>>>,
 }
 
 impl Listeners {
@@ -33,8 +33,8 @@ impl Listeners {
     Self::default()
   }
 
-  pub fn push(&mut self, id: &'static str, handle: DataCallback) -> Result<()> {
-    let mut listeners = self.listeners.write().unwrap();
+  pub fn insert(&mut self, id: &'static str, handle: DataCallback) -> Result<()> {
+    let mut listeners = self.listeners.lock().unwrap();
 
     if listeners.contains_key(id) {
       return Err(Error::ListenerAlreadyExists(String::from(id)));
@@ -46,7 +46,7 @@ impl Listeners {
   }
 
   pub fn remove(&mut self, id: &'static str) {
-    let mut listeners = self.listeners.write().unwrap();
+    let mut listeners = self.listeners.lock().unwrap();
 
     listeners.remove(id);
   }
@@ -55,7 +55,7 @@ impl Listeners {
     let handle = self.listeners.clone();
 
     move |data, info| {
-      let mut listeners = handle.write().unwrap();
+      let mut listeners = handle.lock().unwrap();
 
       for listener in listeners.values_mut() {
         (listener.callback)(data, info);
