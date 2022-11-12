@@ -1,3 +1,6 @@
+use std::thread::sleep;
+use std::time::Duration;
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Host, HostId, Stream};
 use pulsectl::controllers::types::ApplicationInfo;
@@ -22,6 +25,7 @@ fn devices() -> Result<Vec<Device>> {
     .filter_map(|info| {
       Some(Device {
         name: info.description.clone()?,
+        index: info.index,
         id: info.name.clone()?,
       })
     })
@@ -48,13 +52,40 @@ impl LinuxHost {
     &self.devices
   }
 
+  fn _get_app(&self, controller: &mut SourceController) -> Result<ApplicationInfo> {
+    if let Some(app) = &self.app {
+      return Ok(controller.get_app_by_index(app.index)?);
+    };
+
+    let name = get_application_name()?;
+    let apps = controller.list_applications()?;
+
+    Ok(
+      apps
+        .iter()
+        .find(|app| app.proplist.get_str("application.name").as_ref() == Some(&name))
+        .ok_or(Error::NoApplicationFound(name))?
+        .to_owned(),
+    )
+  }
+
+  fn _change_device(
+    &self,
+    controller: &mut SourceController,
+    app: &ApplicationInfo,
+    device: &Device,
+  ) -> Result<()> {
+    // Needs to have some delay, 20 ms seems to have no issues from my testing
+    // don't know why this sometimes doesn't work if you do it too fast though
+    sleep(Duration::from_millis(20));
+    controller.move_app_by_index(app.index, device.index)?;
+
+    Ok(())
+  }
+
   pub fn change_device(&mut self, device: &Device) -> Result<()> {
     match &self.app {
-      Some(app) => {
-        let mut controller = SourceController::create()?;
-
-        controller.move_app_by_name(app.index, &device.id)?;
-      }
+      Some(app) => self._change_device(&mut SourceController::create()?, app, device)?,
       None => self.pending_device = Some(device.to_owned()),
     }
 
@@ -81,18 +112,11 @@ impl LinuxHost {
 
     self.stream = Some(stream);
 
-    let name = get_application_name()?;
     let mut controller = SourceController::create()?;
-    let apps = controller.list_applications()?;
-
-    let app = apps
-      .iter()
-      .find(|app| app.proplist.get_str("application.name").as_ref() == Some(&name))
-      .ok_or(Error::NoApplicationFound(name))?
-      .to_owned();
+    let app = self._get_app(&mut controller)?;
 
     if let Some(device) = &self.pending_device {
-      controller.move_app_by_name(app.index, &device.id)?;
+      self._change_device(&mut controller, &app, device)?;
     }
 
     self.app = Some(app);

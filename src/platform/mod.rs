@@ -58,6 +58,10 @@ pub struct Device {
   name: String,
 
   #[cfg(target_os = "linux")]
+  /// PulseAudio device index
+  pub(crate) index: u32,
+
+  #[cfg(target_os = "linux")]
   /// on linux this would be `device.name`
   pub(crate) id: String,
 }
