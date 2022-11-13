@@ -1,8 +1,7 @@
-use std::sync::{Arc, RwLock};
 use std::thread::sleep;
 use std::time::Duration;
 
-use safav::{DataCallback, Host, Listener, PollingListener};
+use safav::{Host, Listener, PollingListener};
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;

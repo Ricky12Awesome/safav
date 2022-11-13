@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -9,12 +11,12 @@ use pulsectl::controllers::{AppControl, DeviceControl, SourceController};
 use crate::{get_application_name, Device, Error, Listeners, Result};
 
 pub struct LinuxHost {
-  pub(crate) host: Host,
-  pub(crate) devices: Vec<Device>,
-  pub(crate) listeners: Listeners,
-  pub(crate) stream: Option<Stream>,
-  pub(crate) app: Option<ApplicationInfo>,
-  pub(crate) pending_device: Option<Device>,
+  pub host: Host,
+  pub devices: Vec<Device>,
+  pub listeners: Listeners,
+  pub stream: Option<Stream>,
+  pub app: Option<ApplicationInfo>,
+  pub pending_device: Option<Device>,
 }
 
 fn devices() -> Result<Vec<Device>> {

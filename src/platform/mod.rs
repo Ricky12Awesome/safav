@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use cpal::SampleRate;
 
 use crate::{Listeners, Result};
 
@@ -9,19 +10,19 @@ pub(crate) mod linux;
 pub(crate) mod windows;
 
 pub struct Host {
-  // #[cfg(windows)]
-  // inner: windows::WindowsHost,
+  #[cfg(windows)]
+  inner: windows::WindowsHost,
   #[cfg(target_os = "linux")]
   inner: linux::LinuxHost,
 }
 
 impl Host {
-  // #[cfg(windows)]
-  // pub fn new(&mut self) -> Result<Self> {
-  //   Ok(Self {
-  //     inner: windows::WindowsHost::new()?,
-  //   })
-  // }
+  #[cfg(windows)]
+  pub fn new() -> Result<Self> {
+    Ok(Self {
+      inner: windows::WindowsHost::new()?,
+    })
+  }
 
   #[cfg(target_os = "linux")]
   pub fn new() -> Result<Self> {
@@ -56,6 +57,12 @@ impl Host {
 pub struct Device {
   /// on linux this would be `device.description`
   name: String,
+
+  #[cfg(windows)]
+  sample_rate: u32,
+
+  #[cfg(windows)]
+  buffer_size: Option<u32>,
 
   #[cfg(target_os = "linux")]
   /// PulseAudio device index
