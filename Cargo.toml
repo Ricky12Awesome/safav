@@ -13,5 +13,8 @@ thiserror = "1.0.37"
 version = "1.0.145"
 optional = true
 
+[target.'cfg(target_os = "linux")'.dependencies.rust-pulsectl-fork]
+git = "https://github.com/Ricky12Awesome/pulsectl.git"
+
 [workspace]
 members = ["examples/term_visualizer"]

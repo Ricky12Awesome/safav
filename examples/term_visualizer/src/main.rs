@@ -4,8 +4,7 @@ use std::io::{stdout, Write};
 use colored::Color;
 use palette::rgb::Rgb;
 use palette::{FromColor, Hsl, RgbHue};
-
-use safav::{DeviceManager, PollingStream};
+use safav::{Host, Listener, PollingListener};
 
 const ESC: char = '\x1b';
 
@@ -83,17 +82,23 @@ impl<'a> Grid<'a> {
 }
 
 fn main() -> safav::Result<()> {
-  let manager = DeviceManager::new()?;
-  let device = manager.default_loopback_device().unwrap();
-  let mut stream = PollingStream::new(1024);
+  let mut host = Host::new()?;
+  let listener = PollingListener::default();
 
-  stream.change_to(device)?;
+  host.listeners().insert("poll", listener.callback())?;
+
+  let select = inquire::Select::new("Select Device", host.devices().clone())
+    .prompt()
+    .unwrap();
+
+  host.change_device(&select)?;
+  host.listen()?;
 
   let mut grid = Grid::new(0, 0, "█", Color::Black);
   let mut max = 0.0;
 
   loop {
-    let values = stream.poll();
+    let values = listener.poll();
     let termsize::Size { rows, cols } = termsize::get().unwrap();
     let rows = rows as usize;
     let cols = cols as usize;
@@ -140,6 +145,4 @@ fn main() -> safav::Result<()> {
 
     // sleep(Duration::from_millis(1000 / 60));
   }
-
-  Ok(())
 }

@@ -1,28 +1,25 @@
-use safav::DeviceManager;
+use std::thread::sleep;
+use std::time::Duration;
+
+use safav::{Host, Listener, PollingListener};
 
 fn main() -> safav::Result<()> {
-  let manager = DeviceManager::new()?;
+  let mut host = Host::new()?;
+  let devices = host.devices();
 
-  println!(
-    "{:#?}",
-    manager
-      .devices()
-      .iter()
-      .map(|it| format!("[{:?}]: {}", it.source(), it.name()))
-      .collect::<Vec<_>>()
-  );
-
-  let input = manager.default_input_device();
-  let output = manager.default_loopback_device();
-
-  match input {
-    None => println!("No default input device found"),
-    Some(device) => println!("Default [{:?}]: {}", device.source(), device.name()),
+  for dev in devices {
+    println!("{dev}");
   }
 
-  match output {
-    None => println!("No default output (loopback) device found"),
-    Some(device) => println!("Default [{:?}]: {}", device.source(), device.name()),
+  let polling = PollingListener::default();
+
+  host.listeners().insert("test", polling.callback())?;
+
+  host.listen()?;
+
+  for _ in 0..100 {
+    println!("{}", polling.poll().iter().sum::<f32>());
+    sleep(Duration::from_millis(50));
   }
 
   Ok(())
