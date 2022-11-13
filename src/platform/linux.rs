@@ -8,7 +8,7 @@ use cpal::{Host, HostId, Stream};
 use pulsectl::controllers::types::ApplicationInfo;
 use pulsectl::controllers::{AppControl, DeviceControl, SourceController};
 
-use crate::{get_application_name, Device, Error, Listeners, Result};
+use crate::{Device, Error, Listeners, Result};
 
 pub struct LinuxHost {
   pub host: Host,
@@ -17,6 +17,17 @@ pub struct LinuxHost {
   pub stream: Option<Stream>,
   pub app: Option<ApplicationInfo>,
   pub pending_device: Option<Device>,
+}
+
+fn get_application_name() -> Result<String> {
+  std::env::args()
+    .next()
+    .as_ref()
+    .map(std::path::Path::new)
+    .and_then(std::path::Path::file_name)
+    .and_then(std::ffi::OsStr::to_str)
+    .map(String::from)
+    .ok_or(Error::NoApplicationName)
 }
 
 fn devices() -> Result<Vec<Device>> {

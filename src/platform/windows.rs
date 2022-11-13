@@ -1,11 +1,9 @@
 #![cfg(windows)]
 
 use std::collections::HashMap;
-use std::thread::sleep;
-use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, Host, HostId, InputCallbackInfo, SampleFormat, SampleRate, Stream, StreamConfig};
+use cpal::{BufferSize, Host, HostId, SampleFormat, SampleRate, Stream, StreamConfig};
 
 use crate::{Device, Error, Listeners, Result};
 
@@ -92,6 +90,10 @@ impl WindowsHost {
     })
   }
 
+  pub fn default_device(&self) -> Result<&Device> {
+    self.devices.first().ok_or(Error::NoDefaultDeviceFound)
+  }
+
   pub fn devices(&self) -> &Vec<Device> {
     &self.devices
   }
@@ -142,7 +144,7 @@ impl WindowsHost {
         self._change_device(device)?;
       }
       None => {
-        if let Some(device) = &self.devices.first().cloned() {
+        if let Ok(device) = &self.default_device().cloned() {
           self._change_device(device)?;
         }
       }

@@ -1,5 +1,4 @@
 use std::fmt::{Display, Formatter};
-use cpal::SampleRate;
 
 use crate::{Listeners, Result};
 
@@ -29,6 +28,10 @@ impl Host {
     Ok(Self {
       inner: linux::LinuxHost::new()?,
     })
+  }
+
+  pub fn default_device(&self) -> Result<&Device> {
+    self.inner.default_device()
   }
 
   pub fn devices(&self) -> &Vec<Device> {
@@ -66,11 +69,11 @@ pub struct Device {
 
   #[cfg(target_os = "linux")]
   /// PulseAudio device index
-  pub(crate) index: u32,
+  index: u32,
 
   #[cfg(target_os = "linux")]
   /// on linux this would be `device.name`
-  pub(crate) id: String,
+  id: String,
 }
 
 impl Device {
