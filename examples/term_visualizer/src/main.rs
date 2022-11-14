@@ -85,7 +85,7 @@ fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
   let listener = PollingListener::default();
 
-  host.listeners().insert("poll", listener.callback())?;
+  host.listeners().insert_raw("poll", listener.callback())?;
 
   let select = inquire::Select::new("Select Device", host.devices().clone())
     .prompt()

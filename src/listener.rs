@@ -1,6 +1,5 @@
-use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 pub use cpal::InputCallbackInfo;
 
@@ -33,14 +32,18 @@ impl Listeners {
     Self::default()
   }
 
-  pub fn insert(&mut self, id: &'static str, handle: DataCallback) -> Result<()> {
+  pub fn insert(&mut self, id: &'static str, listener: &impl Listener) -> Result<()> {
+    self.insert_raw(id, listener.callback())
+  }
+
+  pub fn insert_raw(&mut self, id: &'static str, callback: DataCallback) -> Result<()> {
     let mut listeners = self.listeners.lock().unwrap();
 
     if listeners.contains_key(id) {
       return Err(Error::ListenerAlreadyExists(String::from(id)));
     }
 
-    listeners.insert(id, handle);
+    listeners.insert(id, callback);
 
     Ok(())
   }
@@ -66,31 +69,18 @@ impl Listeners {
 
 pub struct PollingListener {
   handle: Arc<RwLock<Vec<f32>>>,
-  buf: RefCell<Vec<f32>>,
 }
 
 impl PollingListener {
   /// Creates a new [PollingListener] using a custom capacity
-  ///
-  /// capacity is used in 2 buffers of `Vec<f32>`,
   pub fn new(capacity: usize) -> Self {
     Self {
       handle: Arc::new(RwLock::new(Vec::with_capacity(capacity))),
-      buf: RefCell::new(Vec::with_capacity(capacity)),
     }
   }
 
-  pub fn poll(&self) -> Ref<Vec<f32>> {
-    let handle = self.handle.try_read();
-
-    if let Ok(handle) = handle {
-      let mut buf = self.buf.borrow_mut();
-
-      buf.resize(handle.len(), 0.);
-      buf.copy_from_slice(&handle);
-    }
-
-    self.buf.borrow()
+  pub fn poll(&self) -> RwLockReadGuard<Vec<f32>> {
+    self.handle.read().unwrap()
   }
 }
 

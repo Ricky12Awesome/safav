@@ -21,9 +21,13 @@ pub enum Error {
   #[error("Couldn't find a default device")]
   NoDefaultDeviceFound,
 
+
   #[error("Couldn't determine application name")]
   NoApplicationName,
-
+  
+  #[error("Couldn't find device with at '{0}' index")]
+  InvalidDeviceIndex(usize),
+  
   #[error("Couldn't find a device named '{0}'")]
   NoDeviceFound(String),
 

@@ -16,7 +16,7 @@ pub struct LinuxHost {
   pub listeners: Listeners,
   pub stream: Option<Stream>,
   pub app: Option<ApplicationInfo>,
-  pub pending_device: Option<Device>,
+  pub current_device_index: Option<usize>,
 }
 
 fn get_application_name() -> Result<String> {
@@ -32,17 +32,25 @@ fn get_application_name() -> Result<String> {
 
 fn devices() -> Result<Vec<Device>> {
   let mut controller = SourceController::create()?;
-  let devices = controller
+  let mut default = Some(0);
+  let mut devices = controller
     .list_devices()?
     .iter()
-    .filter_map(|info| {
+    .enumerate()
+    .filter_map(|(index, info)| {
+      default = info.monitor.map(|_| index);
+
       Some(Device {
         name: info.description.clone()?,
         index: info.index,
         id: info.name.clone()?,
       })
     })
-    .collect();
+    .collect::<Vec<_>>();
+
+  if let Some(default) = default {
+    devices.swap(0, default);
+  }
 
   Ok(devices)
 }
@@ -57,8 +65,20 @@ impl LinuxHost {
       listeners: Listeners::new(),
       stream: None,
       app: None,
-      pending_device: None,
+      current_device_index: None,
     })
+  }
+
+  pub fn current_device_index(&self) -> Option<usize> {
+    self.current_device_index
+  }
+
+  pub fn current_device(&self) -> Option<&Device> {
+    self.current_device_index.and_then(|i| self.devices.get(i))
+  }
+
+  pub fn default_device(&self) -> Result<&Device> {
+    self.devices.first().ok_or(Error::NoDefaultDeviceFound)
   }
 
   pub fn devices(&self) -> &Vec<Device> {
@@ -96,11 +116,23 @@ impl LinuxHost {
     Ok(())
   }
 
+  pub fn change_device_by_index(&mut self, index: usize) -> Result<()> {
+    let device = self
+      .devices
+      .get(index)
+      .ok_or(Error::InvalidDeviceIndex(index))?
+      .to_owned();
+
+    self.change_device(&device)
+  }
+
   pub fn change_device(&mut self, device: &Device) -> Result<()> {
     match &self.app {
       Some(app) => self._change_device(&mut SourceController::create()?, app, device)?,
-      None => self.pending_device = Some(device.to_owned()),
+      None => (),
     }
+
+    self.current_device_index = self.devices.iter().position(|dev| dev == device);
 
     Ok(())
   }
@@ -128,8 +160,19 @@ impl LinuxHost {
     let mut controller = SourceController::create()?;
     let app = self._get_app(&mut controller)?;
 
-    if let Some(device) = &self.pending_device {
-      self._change_device(&mut controller, &app, device)?;
+    match self.current_device() {
+      Some(device) => {
+        self._change_device(&mut controller, &app, device)?;
+      }
+      None => {
+        sleep(Duration::from_millis(10));
+        let app = self._get_app(&mut controller)?;
+
+        self.current_device_index = self
+          .devices
+          .iter()
+          .position(|dev| dev.index == app.connection_id);
+      }
     }
 
     self.app = Some(app);
@@ -138,7 +181,23 @@ impl LinuxHost {
   }
 
   pub fn refresh(&mut self) -> Result<()> {
-    self.devices = devices()?;
+    let devices = devices()?;
+
+    let current = self
+      .current_device_index
+      .and_then(|index| self.devices.get(index));
+
+    let same_index = self
+      .current_device_index
+      .and_then(|index| devices.get(index));
+
+    if current != same_index {
+      if let Some(current) = current {
+        self.current_device_index = devices.iter().position(|dev| dev == current);
+      }
+    }
+
+    self.devices = devices;
 
     Ok(())
   }

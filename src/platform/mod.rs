@@ -30,6 +30,14 @@ impl Host {
     })
   }
 
+  pub fn current_device_index(&self) -> Option<usize> {
+    self.inner.current_device_index()
+  }
+
+  pub fn current_device(&self) -> Option<&Device> {
+    self.inner.current_device()
+  }
+
   pub fn default_device(&self) -> Result<&Device> {
     self.inner.default_device()
   }
@@ -38,6 +46,10 @@ impl Host {
     self.inner.devices()
   }
 
+  pub fn change_device_by_index(&mut self, index: usize) -> Result<()> {
+    self.inner.change_device_by_index(index)
+  }
+  
   pub fn change_device(&mut self, device: &Device) -> Result<()> {
     self.inner.change_device(device)
   }
