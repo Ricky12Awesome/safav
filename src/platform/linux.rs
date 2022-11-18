@@ -1,12 +1,12 @@
 #![cfg(target_os = "linux")]
 
-use std::thread::sleep;
-use std::time::Duration;
+use std::{thread::sleep, time::Duration};
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Host, HostId, Stream};
-use pulsectl::controllers::types::ApplicationInfo;
-use pulsectl::controllers::{AppControl, DeviceControl, SourceController};
+use cpal::{
+  traits::{DeviceTrait, HostTrait, StreamTrait},
+  Host, HostId, Stream,
+};
+use pulsectl::controllers::{types::ApplicationInfo, AppControl, DeviceControl, SourceController};
 
 use crate::{Device, Error, Listeners, Result};
 
@@ -116,6 +116,15 @@ impl LinuxHost {
     Ok(())
   }
 
+  fn _get_device_index(devices: &Vec<Device>, device_index: u32) -> Option<usize> {
+    let index = devices.iter().position(|dev| dev.index == device_index);
+
+    match index {
+      None if !devices.is_empty() => Some(0),
+      index => index,
+    }
+  }
+
   pub fn change_device_by_index(&mut self, index: usize) -> Result<()> {
     let device = self
       .devices
@@ -132,7 +141,7 @@ impl LinuxHost {
       None => (),
     }
 
-    self.current_device_index = self.devices.iter().position(|dev| dev == device);
+    self.current_device_index = Self::_get_device_index(&self.devices, device.index);
 
     Ok(())
   }
@@ -165,13 +174,20 @@ impl LinuxHost {
         self._change_device(&mut controller, &app, device)?;
       }
       None => {
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(20));
         let app = self._get_app(&mut controller)?;
 
-        self.current_device_index = self
-          .devices
-          .iter()
-          .position(|dev| dev.index == app.connection_id);
+        println!("{} {}", app.connection_id, app.connection_id == u32::MAX);
+
+        if app.connection_id == u32::MAX {
+          let default = self.default_device()?;
+
+          self._change_device(&mut controller, &app, default)?;
+
+          self.current_device_index = Self::_get_device_index(&self.devices, default.index)
+        } else {
+          self.current_device_index = Self::_get_device_index(&self.devices, app.connection_id)
+        }
       }
     }
 
@@ -193,7 +209,7 @@ impl LinuxHost {
 
     if current != same_index {
       if let Some(current) = current {
-        self.current_device_index = devices.iter().position(|dev| dev == current);
+        self.current_device_index = Self::_get_device_index(&self.devices, current.index)
       }
     }
 
