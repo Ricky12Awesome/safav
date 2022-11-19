@@ -11,6 +11,8 @@ fn main() -> safav::Result<()> {
     println!("{dev}");
   }
 
+  println!("Default Device: {}", host.default_device()?);
+
   let polling = PollingListener::default();
 
   host.listeners().insert_raw("test", polling.callback())?;

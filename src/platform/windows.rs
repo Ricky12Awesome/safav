@@ -1,5 +1,6 @@
 #![cfg(windows)]
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -12,8 +13,8 @@ pub struct WindowsHost {
   pub devices: Vec<Device>,
   pub native_devices: HashMap<Device, cpal::Device>,
   pub listeners: Listeners,
-  pub pending_device: Option<Device>,
-  pub stream: Option<Stream>,
+  pub current_device_index: RefCell<Option<usize>>,
+  pub stream: RefCell<Option<Stream>>,
 }
 
 fn filter_device(device: cpal::Device) -> Option<(cpal::Device, Device)> {
@@ -85,9 +86,19 @@ impl WindowsHost {
       devices,
       native_devices,
       listeners,
-      pending_device: None,
-      stream: None,
+      current_device_index: RefCell::new(None),
+      stream: RefCell::new(None),
     })
+  }
+
+  pub fn current_device_index(&self) -> Option<usize> {
+    *self.current_device_index.borrow()
+  }
+
+  pub fn current_device(&self) -> Option<&Device> {
+    self
+      .current_device_index()
+      .and_then(|i| self.devices.get(i))
   }
 
   pub fn default_device(&self) -> Result<&Device> {
@@ -98,7 +109,7 @@ impl WindowsHost {
     &self.devices
   }
 
-  fn _change_device(&mut self, device: &Device) -> Result<()> {
+  fn _change_stream(&self, device: &Device) -> Result<()> {
     let native = self
       .native_devices
       .get(device)
@@ -119,17 +130,31 @@ impl WindowsHost {
 
     stream.play()?;
 
-    self.stream = Some(stream);
+    *self.stream.borrow_mut() = Some(stream);
 
     Ok(())
   }
 
-  pub fn change_device(&mut self, device: &Device) -> Result<()> {
-    if self.stream.is_some() {
-      self._change_device(device)?;
-    } else {
-      self.pending_device = Some(device.clone());
+  fn _get_device_index(&self, device: &Device) -> Option<usize> {
+    self.devices.iter().position(|dev| dev == device)
+  }
+
+  pub fn change_device_by_index(&self, index: usize) -> Result<()> {
+    let device = self
+      .devices
+      .get(index)
+      .ok_or(Error::InvalidDeviceIndex(index))?
+      .to_owned();
+
+    self.change_device(&device)
+  }
+
+  pub fn change_device(&self, device: &Device) -> Result<()> {
+    if self.stream.borrow().is_some() {
+      self._change_stream(device)?;
     }
+
+    *self.current_device_index.borrow_mut() = self._get_device_index(device);
 
     Ok(())
   }
@@ -139,13 +164,17 @@ impl WindowsHost {
   }
 
   pub fn listen(&mut self) -> Result<()> {
-    match &self.pending_device.clone() {
-      Some(device) => {
-        self._change_device(device)?;
+    match self.current_device_index() {
+      Some(index) => {
+        if let Some(device) = self.devices.get(index) {
+          self._change_stream(device)?;
+        }
       }
       None => {
-        if let Ok(device) = &self.default_device().cloned() {
-          self._change_device(device)?;
+        if let Ok(device) = self.default_device() {
+          self._change_stream(device)?;
+
+          *self.current_device_index.borrow_mut() = self._get_device_index(device);
         }
       }
     }
@@ -155,6 +184,20 @@ impl WindowsHost {
 
   pub fn refresh(&mut self) -> Result<()> {
     let (native_devices, devices) = filtered_devices(&self.host)?;
+
+    let current = self
+      .current_device_index()
+      .and_then(|index| self.devices.get(index));
+
+    let same_index = self
+      .current_device_index()
+      .and_then(|index| devices.get(index));
+
+    if current != same_index {
+      if let Some(current) = current {
+        *self.current_device_index.borrow_mut() = self._get_device_index(current)
+      }
+    }
 
     self.devices = devices;
     self.native_devices = native_devices;
