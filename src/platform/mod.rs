@@ -50,7 +50,7 @@ impl Host {
     self.inner.change_device_by_index(index)
   }
   
-  pub fn change_device(&mut self, device: &Device) -> Result<()> {
+  pub fn change_device(&self, device: &Device) -> Result<()> {
     self.inner.change_device(device)
   }
 
