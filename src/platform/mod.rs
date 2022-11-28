@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::{Listeners, Result};
+use crate::{Listener, Result};
 
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;
@@ -16,20 +16,15 @@ pub struct Host {
 }
 
 impl Host {
-  #[cfg(windows)]
   pub fn new() -> Result<Self> {
     Ok(Self {
+      #[cfg(windows)]
       inner: windows::WindowsHost::new()?,
-    })
-  }
 
-  #[cfg(target_os = "linux")]
-  pub fn new() -> Result<Self> {
-    Ok(Self {
+      #[cfg(target_os = "linux")]
       inner: linux::LinuxHost::new()?,
     })
   }
-
   pub fn current_device_index(&self) -> Option<usize> {
     self.inner.current_device_index()
   }
@@ -46,20 +41,21 @@ impl Host {
     self.inner.devices()
   }
 
-  pub fn change_device_by_index(&mut self, index: usize) -> Result<()> {
+  pub fn change_device_by_index(&self, index: usize) -> Result<()> {
     self.inner.change_device_by_index(index)
   }
-  
+
   pub fn change_device(&self, device: &Device) -> Result<()> {
     self.inner.change_device(device)
   }
 
-  pub fn listeners(&mut self) -> &mut Listeners {
-    self.inner.listeners()
-  }
-
   pub fn listen(&mut self) -> Result<()> {
     self.inner.listen()
+  }
+
+  /// Creates a new listener that can be shared between threads since host itself can't be shared
+  pub fn create_listener(&self) -> Listener {
+    self.inner.listener.clone()
   }
 
   pub fn refresh(&mut self) -> Result<()> {

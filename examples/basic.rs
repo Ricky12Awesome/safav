@@ -1,7 +1,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use safav::{Host, Listener, PollingListener};
+use safav::{Host, Listener, Listener};
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
@@ -13,7 +13,7 @@ fn main() -> safav::Result<()> {
 
   println!("Default Device: {}", host.default_device()?);
 
-  let polling = PollingListener::default();
+  let polling = Listener::default();
 
   host.listeners().insert_raw("test", polling.callback())?;
 

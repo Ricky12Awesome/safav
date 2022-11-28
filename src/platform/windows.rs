@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize, Host, HostId, SampleFormat, SampleRate, Stream, StreamConfig};
 
-use crate::{Device, Error, Listeners, Result};
+use crate::{Device, Error, Listener, Result};
 
 pub struct WindowsHost {
   pub host: Host,
   pub devices: Vec<Device>,
   pub native_devices: HashMap<Device, cpal::Device>,
-  pub listeners: Listeners,
+  pub listener: Listener,
   pub current_device_index: RefCell<Option<usize>>,
   pub stream: RefCell<Option<Stream>>,
 }
@@ -79,13 +79,13 @@ impl WindowsHost {
   pub fn new() -> Result<Self> {
     let host = cpal::host_from_id(HostId::Wasapi)?;
     let (native_devices, devices) = filtered_devices(&host)?;
-    let listeners = Listeners::new();
+    let listeners = Listener::default();
 
     Ok(Self {
       host,
       devices,
       native_devices,
-      listeners,
+      listener: listeners,
       current_device_index: RefCell::new(None),
       stream: RefCell::new(None),
     })
@@ -124,7 +124,7 @@ impl WindowsHost {
         .unwrap_or(BufferSize::Default),
     };
 
-    let data_cb = self.listeners.data_callback();
+    let data_cb = self.listener.callback().get();
     let err_cb = |err| eprintln!("{err}");
     let stream = native.build_input_stream(&config, data_cb, err_cb)?;
 
@@ -157,10 +157,6 @@ impl WindowsHost {
     *self.current_device_index.borrow_mut() = self._get_device_index(device);
 
     Ok(())
-  }
-
-  pub fn listeners(&mut self) -> &mut Listeners {
-    &mut self.listeners
   }
 
   pub fn listen(&mut self) -> Result<()> {

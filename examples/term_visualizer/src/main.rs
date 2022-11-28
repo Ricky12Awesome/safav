@@ -4,7 +4,7 @@ use std::io::{stdout, Write};
 use colored::Color;
 use palette::rgb::Rgb;
 use palette::{FromColor, Hsl, RgbHue};
-use safav::{Host, Listener, PollingListener};
+use safav::{Host, Listener, Listener};
 
 const ESC: char = '\x1b';
 
@@ -83,7 +83,7 @@ impl<'a> Grid<'a> {
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
-  let listener = PollingListener::default();
+  let listener = Listener::default();
 
   host.listeners().insert_raw("poll", listener.callback())?;
 
@@ -98,7 +98,9 @@ fn main() -> safav::Result<()> {
   let mut max = 0.0;
 
   loop {
-    let values = listener.poll();
+    let values = listener.poll().clone();
+    let values = safav::fft(&values, 8192);
+
     let termsize::Size { rows, cols } = termsize::get().unwrap();
     let rows = rows as usize;
     let cols = cols as usize;
@@ -136,9 +138,11 @@ fn main() -> safav::Result<()> {
 
     for (index, (val, color)) in values {
       let rows = rows as f32;
-      let y = ((rows / 2.) + (val * 0.5) * rows).floor() as usize;
+      let iy = ((rows / 2.) + (val * -5.0) * rows).floor() as usize;
+      let uy = ((rows / 2.) + (val * 5.0) * rows).floor() as usize;
 
-      grid.set_pixel(index, y, color);
+      grid.set_pixel(index, iy, color);
+      grid.set_pixel(index, uy, color);
     }
 
     grid.render()?;

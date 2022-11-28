@@ -6,15 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cpal = "0.14.0"
-thiserror = "1.0.37"
+cpal = "^0.14"
+thiserror = "^1.0"
+rustfft = "6.1"
 
-[dependencies.serde]
-version = "1.0.145"
-optional = true
+[dependencies.dasp]
+version = "0.11.0"
+features = ["all"]
 
 [target.'cfg(target_os = "linux")'.dependencies.rust-pulsectl-fork]
 git = "https://github.com/Ricky12Awesome/pulsectl.git"
 
 [workspace]
-members = ["examples/term_visualizer"]
+members = ["examples/term_visualizer", "examples/macroquad_visualizer"]
