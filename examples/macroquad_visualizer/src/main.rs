@@ -1,6 +1,6 @@
 #![feature(never_type, default_free_fn)]
 
-use egui_macroquad::egui::{Slider, Ui, Widget, Window};
+use egui_macroquad::egui::{ComboBox, Slider, Ui, Widget, Window};
 use macroquad::prelude::*;
 use safav::{Host, Listener};
 use std::{default::default, f32::consts::TAU};
@@ -27,6 +27,7 @@ struct Settings {
   wave_scale: f32,
   radius: f32,
   trim: usize,
+  current_device: usize,
 }
 
 impl Default for Settings {
@@ -37,7 +38,8 @@ impl Default for Settings {
       fft_scale: 100.,
       wave_scale: 100.,
       radius: 350.,
-      trim: 0
+      trim: 0,
+      current_device: 0,
     }
   }
 }
@@ -82,7 +84,7 @@ fn visualize(listener: &Listener, settings: &Settings) {
   }
 }
 
-fn ui(ui: &mut Ui, settings: &mut Settings) {
+fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
   ui.checkbox(&mut settings.fft, "FFT");
 
   if settings.fft {
@@ -113,6 +115,26 @@ fn ui(ui: &mut Ui, settings: &mut Settings) {
     .text("Radius")
     .step_by(5.0)
     .ui(ui);
+
+  ComboBox::from_label("Devices")
+    .selected_text("Devices")
+    .width(200.0)
+    .show_ui(ui, |ui| {
+      let devices = host.devices();
+      let mut changed = settings.current_device;
+
+      for (index, device) in devices.iter().enumerate() {
+        ui.selectable_value(
+          &mut changed,
+          index,
+          device.name(),
+        );
+      }
+
+      if changed != settings.current_device {
+        host.change_device_by_index(changed).unwrap();
+      }
+    });
 }
 
 async fn _main() -> safav::Result<!> {
@@ -128,7 +150,7 @@ async fn _main() -> safav::Result<!> {
     egui_macroquad::ui(|ctx| {
       Window::new("Settings")
         .resizable(true)
-        .show(ctx, |ui| self::ui(ui, &mut settings));
+        .show(ctx, |ui| self::ui(ui, &mut settings, &host));
     });
 
     visualize(&listener, &settings);

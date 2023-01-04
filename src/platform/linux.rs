@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 
-use std::{thread::sleep, time::Duration};
+use std::{sync::RwLock, thread::sleep, time::Duration};
 
 use cpal::{
   traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -8,15 +8,15 @@ use cpal::{
 };
 use pulsectl::controllers::{types::ApplicationInfo, AppControl, DeviceControl, SourceController};
 
-use crate::{Device, Error, Listeners, Result};
+use crate::{Device, Error, Listener, Result};
 
 pub struct LinuxHost {
   pub host: Host,
   pub devices: Vec<Device>,
-  pub listeners: Listeners,
+  pub listener: Listener,
   pub stream: Option<Stream>,
   pub app: Option<ApplicationInfo>,
-  pub current_device_index: Option<usize>,
+  pub current_device_index: RwLock<Option<usize>>,
 }
 
 fn get_application_name() -> Result<String> {
@@ -62,19 +62,21 @@ impl LinuxHost {
     Ok(Self {
       host,
       devices: devices()?,
-      listeners: Listeners::new(),
+      listener: Listener::default(),
       stream: None,
       app: None,
-      current_device_index: None,
+      current_device_index: RwLock::default(),
     })
   }
 
   pub fn current_device_index(&self) -> Option<usize> {
-    self.current_device_index
+    *self.current_device_index.read().unwrap()
   }
 
   pub fn current_device(&self) -> Option<&Device> {
-    self.current_device_index.and_then(|i| self.devices.get(i))
+    self
+      .current_device_index()
+      .and_then(|i| self.devices.get(i))
   }
 
   pub fn default_device(&self) -> Result<&Device> {
@@ -125,7 +127,7 @@ impl LinuxHost {
     }
   }
 
-  pub fn change_device_by_index(&mut self, index: usize) -> Result<()> {
+  pub fn change_device_by_index(&self, index: usize) -> Result<()> {
     let device = self
       .devices
       .get(index)
@@ -135,19 +137,17 @@ impl LinuxHost {
     self.change_device(&device)
   }
 
-  pub fn change_device(&mut self, device: &Device) -> Result<()> {
+  pub fn change_device(&self, device: &Device) -> Result<()> {
     match &self.app {
       Some(app) => self._change_device(&mut SourceController::create()?, app, device)?,
       None => (),
     }
 
-    self.current_device_index = Self::_get_device_index(&self.devices, device.index);
+    let index = Self::_get_device_index(&self.devices, device.index);
+
+    *self.current_device_index.write().unwrap() = index;
 
     Ok(())
-  }
-
-  pub fn listeners(&mut self) -> &mut Listeners {
-    &mut self.listeners
   }
 
   pub fn listen(&mut self) -> Result<()> {
@@ -158,7 +158,7 @@ impl LinuxHost {
 
     let config = device.default_input_config()?.config();
 
-    let data_cb = self.listeners.data_callback();
+    let data_cb = self.listener.callback().get();
     let err_cb = |err| eprintln!("{err}");
     let stream = device.build_input_stream(&config, data_cb, err_cb)?;
 
@@ -179,15 +179,17 @@ impl LinuxHost {
 
         println!("{} {}", app.connection_id, app.connection_id == u32::MAX);
 
-        if app.connection_id == u32::MAX {
+        let index = if app.connection_id == u32::MAX {
           let default = self.default_device()?;
 
           self._change_device(&mut controller, &app, default)?;
 
-          self.current_device_index = Self::_get_device_index(&self.devices, default.index)
+          Self::_get_device_index(&self.devices, default.index)
         } else {
-          self.current_device_index = Self::_get_device_index(&self.devices, app.connection_id)
-        }
+          Self::_get_device_index(&self.devices, app.connection_id)
+        };
+
+        *self.current_device_index.write().unwrap() = index;
       }
     }
 
@@ -200,16 +202,18 @@ impl LinuxHost {
     let devices = devices()?;
 
     let current = self
-      .current_device_index
+      .current_device_index()
       .and_then(|index| self.devices.get(index));
 
     let same_index = self
-      .current_device_index
+      .current_device_index()
       .and_then(|index| devices.get(index));
 
     if current != same_index {
       if let Some(current) = current {
-        self.current_device_index = Self::_get_device_index(&self.devices, current.index)
+        let index = Self::_get_device_index(&self.devices, current.index);
+
+        *self.current_device_index.write().unwrap() = index;
       }
     }
 
