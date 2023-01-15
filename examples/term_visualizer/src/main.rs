@@ -1,10 +1,12 @@
-use std::cmp::Ordering;
-use std::io::{stdout, Write};
+use std::{
+  cmp::Ordering,
+  io::{stdout, Write},
+};
 
 use colored::Color;
-use palette::rgb::Rgb;
-use palette::{FromColor, Hsl, RgbHue};
-use safav::{Host, Listener, Listener};
+use palette::{FromColor, Hsl, rgb::Rgb, RgbHue};
+
+use safav::{FFT, Host};
 
 const ESC: char = '\x1b';
 
@@ -83,9 +85,8 @@ impl<'a> Grid<'a> {
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
-  let listener = Listener::default();
-
-  host.listeners().insert_raw("poll", listener.callback())?;
+  let mut fft = FFT::default();
+  let listener = host.create_listener();
 
   let select = inquire::Select::new("Select Device", host.devices().clone())
     .prompt()
@@ -99,11 +100,12 @@ fn main() -> safav::Result<()> {
 
   loop {
     let values = listener.poll().clone();
-    let values = safav::fft(&values, 8192);
 
     let termsize::Size { rows, cols } = termsize::get().unwrap();
     let rows = rows as usize;
     let cols = cols as usize;
+
+    let values = fft.process(&values, cols);
 
     if grid.width != cols || grid.height != rows {
       grid.update_size(cols, rows);

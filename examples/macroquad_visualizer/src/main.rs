@@ -1,9 +1,11 @@
 #![feature(never_type, default_free_fn)]
 
+use std::{default::default, f32::consts::TAU};
+
 use egui_macroquad::egui::{ComboBox, Slider, Ui, Widget, Window};
 use macroquad::prelude::*;
-use safav::{Host, Listener};
-use std::{default::default, f32::consts::TAU};
+
+use safav::{Host, Listener, FFT};
 
 fn conf() -> Conf {
   Conf {
@@ -21,7 +23,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Settings {
-  fft: bool,
+  is_fft: bool,
   fft_size: usize,
   fft_scale: f32,
   wave_scale: f32,
@@ -33,7 +35,7 @@ struct Settings {
 impl Default for Settings {
   fn default() -> Self {
     Self {
-      fft: true,
+      is_fft: true,
       fft_size: 16384,
       fft_scale: 100.,
       wave_scale: 100.,
@@ -44,11 +46,11 @@ impl Default for Settings {
   }
 }
 
-fn visualize(listener: &Listener, settings: &Settings) {
+fn visualize(listener: &Listener, settings: &Settings, fft: &mut FFT) {
   let audio = listener.poll().clone();
 
-  let (audio, scale) = if settings.fft {
-    let audio = safav::fft(&audio, settings.fft_size);
+  let (audio, scale) = if settings.is_fft {
+    let audio = fft.process(&audio, settings.fft_size);
     let start = settings.trim.clamp(0, audio.len());
     let end = (audio.len() - settings.trim).clamp(start, audio.len());
     let trim = &audio[start..end];
@@ -85,9 +87,9 @@ fn visualize(listener: &Listener, settings: &Settings) {
 }
 
 fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
-  ui.checkbox(&mut settings.fft, "FFT");
+  ui.checkbox(&mut settings.is_fft, "FFT");
 
-  if settings.fft {
+  if settings.is_fft {
     Slider::new(&mut settings.fft_size, 32..=16384)
       .text("FFT Size")
       .logarithmic(true)
@@ -124,11 +126,7 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
       let mut changed = settings.current_device;
 
       for (index, device) in devices.iter().enumerate() {
-        ui.selectable_value(
-          &mut changed,
-          index,
-          device.name(),
-        );
+        ui.selectable_value(&mut changed, index, device.name());
       }
 
       if changed != settings.current_device {
@@ -140,6 +138,7 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
 async fn _main() -> safav::Result<!> {
   let mut settings = Settings::default();
   let mut host = Host::new()?;
+  let mut fft = FFT::default();
   let listener = host.create_listener();
 
   host.listen()?;
@@ -153,7 +152,7 @@ async fn _main() -> safav::Result<!> {
         .show(ctx, |ui| self::ui(ui, &mut settings, &host));
     });
 
-    visualize(&listener, &settings);
+    visualize(&listener, &settings, &mut fft);
 
     egui_macroquad::draw();
 
