@@ -79,13 +79,13 @@ impl WindowsHost {
   pub fn new() -> Result<Self> {
     let host = cpal::host_from_id(HostId::Wasapi)?;
     let (native_devices, devices) = filtered_devices(&host)?;
-    let listeners = Listener::default();
+    let listener = Listener::new(1024);
 
     Ok(Self {
       host,
       devices,
       native_devices,
-      listener: listeners,
+      listener,
       current_device_index: RefCell::new(None),
       stream: RefCell::new(None),
     })
@@ -126,7 +126,7 @@ impl WindowsHost {
 
     let data_cb = self.listener.callback().get();
     let err_cb = |err| eprintln!("{err}");
-    let stream = native.build_input_stream(&config, data_cb, err_cb)?;
+    let stream = native.build_input_stream(&config, data_cb, err_cb, None)?;
 
     stream.play()?;
 

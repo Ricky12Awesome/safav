@@ -1,6 +1,9 @@
-use std::{thread::sleep, time::Duration};
+use std::{
+  thread::sleep,
+  time::{Duration, Instant},
+};
 
-use safav::{Host, Listener};
+use safav::Host;
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
@@ -12,14 +15,17 @@ fn main() -> safav::Result<()> {
 
   println!("Default Device: {}", host.default_device()?);
 
-  let polling = Listener::default();
+  let polling = host.create_listener();
 
   host.listen()?;
 
-  for _ in 0..100 {
-    println!("{}", polling.poll().iter().sum::<f32>());
-    sleep(Duration::from_millis(50));
+  let timer = Instant::now();
+
+  for _ in 0..100000 {
+    let e = polling.poll();
   }
+
+  println!("{:?}", timer.elapsed());
 
   Ok(())
 }

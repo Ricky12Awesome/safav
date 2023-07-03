@@ -130,6 +130,7 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
       }
 
       if changed != settings.current_device {
+        settings.current_device = changed;
         host.change_device_by_index(changed).unwrap();
       }
     });

@@ -25,30 +25,38 @@ impl Host {
       inner: linux::LinuxHost::new()?,
     })
   }
+
+  /// Gets the current device that is being listened too by index
   pub fn current_device_index(&self) -> Option<usize> {
     self.inner.current_device_index()
   }
 
+  /// Gets the current device that is being listened too
   pub fn current_device(&self) -> Option<&Device> {
     self.inner.current_device()
   }
 
+  /// Gets a list of the default device
   pub fn default_device(&self) -> Result<&Device> {
     self.inner.default_device()
   }
 
+  /// Get a list of devices
   pub fn devices(&self) -> &Vec<Device> {
     self.inner.devices()
   }
 
+  /// change the audio device to listen too by index of [Self::devices]
   pub fn change_device_by_index(&self, index: usize) -> Result<()> {
     self.inner.change_device_by_index(index)
   }
 
+  /// Changes the audio device to listen too
   pub fn change_device(&self, device: &Device) -> Result<()> {
     self.inner.change_device(device)
   }
 
+  /// Starts the listener to listen to audio
   pub fn listen(&mut self) -> Result<()> {
     self.inner.listen()
   }
@@ -58,6 +66,7 @@ impl Host {
     self.inner.listener.clone()
   }
 
+  /// Refreshes audio devices
   pub fn refresh(&mut self) -> Result<()> {
     self.inner.refresh()
   }
@@ -85,6 +94,7 @@ pub struct Device {
 }
 
 impl Device {
+  /// Gets the devices name
   pub fn name(&self) -> &str {
     &self.name
   }

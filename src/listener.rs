@@ -1,6 +1,8 @@
 #![allow(clippy::type_complexity)]
 
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::{
+  sync::{Arc, RwLock, RwLockReadGuard},
+};
 
 pub use cpal::InputCallbackInfo;
 
@@ -26,8 +28,7 @@ pub struct Listener {
 }
 
 impl Listener {
-  /// Creates a new [Listener] using a custom capacity
-  pub fn new(capacity: usize) -> Self {
+  pub(crate) fn new(capacity: usize) -> Self {
     Self {
       handle: Arc::new(RwLock::new(Vec::with_capacity(capacity))),
     }
@@ -46,12 +47,5 @@ impl Listener {
       handle.resize(data.len(), 0.);
       handle.copy_from_slice(data);
     })
-  }
-}
-
-impl Default for Listener {
-  /// Creates a new [Listener] using a capacity of 1024
-  fn default() -> Self {
-    Self::new(1024)
   }
 }
