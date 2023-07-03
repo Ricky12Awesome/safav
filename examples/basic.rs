@@ -1,7 +1,4 @@
-use std::{
-  thread::sleep,
-  time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use safav::Host;
 
@@ -20,12 +17,21 @@ fn main() -> safav::Result<()> {
   host.listen()?;
 
   let timer = Instant::now();
+  let seconds = 5;
+  let duration = Duration::from_secs(seconds);
+  let mut counter = 0;
 
-  for _ in 0..100000 {
-    let e = polling.poll();
+  while timer.elapsed() <= duration {
+    let _data = polling.poll();
+    counter += 1;
   }
 
-  println!("{:?}", timer.elapsed());
+  println!(
+    "Total of {} in {:.0?} [{}/s]",
+    counter,
+    timer.elapsed(),
+    counter / seconds,
+  );
 
   Ok(())
 }
