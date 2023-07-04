@@ -1,15 +1,17 @@
-use std::any::type_name;
-use std::fmt::{Debug, Formatter};
+use std::{
+  any::type_name,
+  fmt::{Debug, Formatter},
+};
 
 use dasp::window::{Hanning, Window};
-use rustfft::{FftPlanner, num_complex::Complex32, num_traits::Zero};
+use rustfft::{num_complex::Complex32, num_traits::Zero, FftPlanner};
 
 pub struct FFT<const BUF_SIZE: usize = 16384> {
   planner: FftPlanner<f32>,
   buf: [f32; BUF_SIZE],
 }
 
-impl Debug for FFT {
+impl <const BUF_SIZE: usize> Debug for FFT<BUF_SIZE> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.debug_struct(type_name::<Self>())
       .field("planner", &"<no debug info>")
@@ -18,11 +20,11 @@ impl Debug for FFT {
   }
 }
 
-impl Default for FFT<16384> {
+impl <const BUF_SIZE: usize> Default for FFT<BUF_SIZE> {
   fn default() -> Self {
     Self {
       planner: FftPlanner::new(),
-      buf: [0.; 16384],
+      buf: [0.; BUF_SIZE],
     }
   }
 }
