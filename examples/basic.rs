@@ -15,7 +15,8 @@ fn main() -> safav::Result<()> {
 
   println!("Default Device: {}", host.default_device()?);
 
-  let listener = host.create_listener::<CustomData>();
+  let thread = host.create_listener::<CustomData>();
+  let main = host.create_listener::<Vec<f32>>();
 
   host.listen()?;
 
@@ -25,13 +26,33 @@ fn main() -> safav::Result<()> {
   let mut counter = 0;
 
   while timer.elapsed() <= duration {
-    let data = listener.poll();
+    let _data = thread.poll();
 
     counter += 1;
   }
 
   println!(
-    "Total of {} in {:.0?} [{}/s]",
+    "[Thread] Total of {} in {:.0?} [{}/s]",
+    counter,
+    timer.elapsed(),
+    counter / seconds,
+  );
+
+  let timer = Instant::now();
+  let seconds = 5;
+  let duration = Duration::from_secs(seconds);
+  let mut fft = FFT::default();
+  let mut counter = 0;
+
+  while timer.elapsed() <= duration {
+    let data = main.poll();
+    let _fft = fft.process(&data, 16384);
+
+    counter += 1;
+  }
+
+  println!(
+    "[Main] Total of {} in {:.0?} [{}/s]",
     counter,
     timer.elapsed(),
     counter / seconds,
@@ -42,14 +63,14 @@ fn main() -> safav::Result<()> {
 
 #[derive(Debug)]
 struct CustomData {
-  fft: Vec<Mutex<FFT>>,
+  fft: Mutex<FFT>,
   data: Vec<f32>,
 }
 
 impl Default for CustomData {
   fn default() -> Self {
     Self {
-      fft: vec![Default::default()],
+      fft: Default::default(),
       data: Vec::with_capacity(16384),
     }
   }
@@ -57,29 +78,11 @@ impl Default for CustomData {
 
 impl AudioData for CustomData {
   fn update(&mut self, data: &[f32]) {
-    for i in 0..128 {
-      let mut replace = false;
-      let mut add = false;
+    let mut fft = self.fft.lock().unwrap();
 
-      match self.fft[i].try_lock() {
-        Ok(mut fft) => {
-          let data = fft.process(data, 16384);
+    let data = fft.process(data, 16384);
 
-          self.data.resize(16384, 0.);
-          self.data.copy_from_slice(data);
-          break;
-        }
-        Err(TryLockError::Poisoned(_)) => replace = true,
-        Err(TryLockError::WouldBlock) => add = true,
-      }
-
-      if replace {
-        self.fft[i] = Default::default();
-      }
-
-      if add && i < 128 {
-        self.fft.push(Default::default())
-      }
-    }
+    self.data.resize(16384, 0.);
+    self.data.copy_from_slice(data);
   }
 }
