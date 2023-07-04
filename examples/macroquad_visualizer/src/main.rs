@@ -5,7 +5,7 @@ use std::{default::default, f32::consts::TAU};
 use egui_macroquad::egui::{ComboBox, Slider, Ui, Widget, Window};
 use macroquad::prelude::*;
 
-use safav::{Host, Listener, FFT};
+use safav::{Host, Listener, FFT, AudioListener};
 
 fn conf() -> Conf {
   Conf {
@@ -46,7 +46,7 @@ impl Default for Settings {
   }
 }
 
-fn visualize(listener: &Listener, settings: &Settings, fft: &mut FFT) {
+fn visualize(listener: &AudioListener<Vec<f32>>, settings: &Settings, fft: &mut FFT) {
   let audio = listener.poll().clone();
 
   let (audio, scale) = if settings.is_fft {

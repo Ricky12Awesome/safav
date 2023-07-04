@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::{Listener, Result};
+use crate::{AudioData, AudioListener, Listener, Result};
 
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;
@@ -62,8 +62,8 @@ impl Host {
   }
 
   /// Creates a new listener that can be shared between threads since host itself can't be shared
-  pub fn create_listener(&self) -> Listener {
-    self.inner.listener.clone()
+  pub fn create_listener<T: AudioData>(&self) -> AudioListener<T> {
+    self.inner.listener.clone().create()
   }
 
   /// Refreshes audio devices

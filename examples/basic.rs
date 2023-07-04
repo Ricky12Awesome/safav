@@ -1,6 +1,9 @@
-use std::time::{Duration, Instant};
+use std::{
+  sync::{Arc, Mutex, TryLockError, TryLockResult},
+  time::{Duration, Instant},
+};
 
-use safav::Host;
+use safav::{AudioData, Host, FFT};
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
@@ -12,7 +15,7 @@ fn main() -> safav::Result<()> {
 
   println!("Default Device: {}", host.default_device()?);
 
-  let polling = host.create_listener();
+  let listener = host.create_listener::<CustomData>();
 
   host.listen()?;
 
@@ -22,7 +25,8 @@ fn main() -> safav::Result<()> {
   let mut counter = 0;
 
   while timer.elapsed() <= duration {
-    let _data = polling.poll();
+    let data = listener.poll();
+
     counter += 1;
   }
 
@@ -34,4 +38,48 @@ fn main() -> safav::Result<()> {
   );
 
   Ok(())
+}
+
+#[derive(Debug)]
+struct CustomData {
+  fft: Vec<Mutex<FFT>>,
+  data: Vec<f32>,
+}
+
+impl Default for CustomData {
+  fn default() -> Self {
+    Self {
+      fft: vec![Default::default()],
+      data: Vec::with_capacity(16384),
+    }
+  }
+}
+
+impl AudioData for CustomData {
+  fn update(&mut self, data: &[f32]) {
+    for i in 0..128 {
+      let mut replace = false;
+      let mut add = false;
+
+      match self.fft[i].try_lock() {
+        Ok(mut fft) => {
+          let data = fft.process(data, 16384);
+
+          self.data.resize(16384, 0.);
+          self.data.copy_from_slice(data);
+          break;
+        }
+        Err(TryLockError::Poisoned(_)) => replace = true,
+        Err(TryLockError::WouldBlock) => add = true,
+      }
+
+      if replace {
+        self.fft[i] = Default::default();
+      }
+
+      if add && i < 128 {
+        self.fft.push(Default::default())
+      }
+    }
+  }
 }

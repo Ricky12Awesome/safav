@@ -1,10 +1,11 @@
 #![cfg(windows)]
 
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, Host, HostId, SampleFormat, SampleRate, Stream, StreamConfig};
+use cpal::{
+  BufferSize,
+  Host, HostId, SampleFormat, SampleRate, Stream, StreamConfig, traits::{DeviceTrait, HostTrait, StreamTrait},
+};
 
 use crate::{Device, Error, Listener, Result};
 
@@ -79,7 +80,7 @@ impl WindowsHost {
   pub fn new() -> Result<Self> {
     let host = cpal::host_from_id(HostId::Wasapi)?;
     let (native_devices, devices) = filtered_devices(&host)?;
-    let listener = Listener::new(1024);
+    let listener = Listener::new();
 
     Ok(Self {
       host,
