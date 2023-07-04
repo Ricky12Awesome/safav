@@ -166,11 +166,12 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
       .ui(ui);
   }
 
+  let devices = host.devices();
+
   ComboBox::from_label("Devices")
-    .selected_text("Devices")
+    .selected_text(format!("{:.28}", devices[settings.current_device].name()))
     .width(200.0)
     .show_ui(ui, |ui| {
-      let devices = host.devices();
       let mut changed = settings.current_device;
 
       for (index, device) in devices.iter().enumerate() {
