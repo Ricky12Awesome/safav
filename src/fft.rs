@@ -20,11 +20,11 @@ impl <const BUF_SIZE: usize> Debug for FFT<BUF_SIZE> {
   }
 }
 
-impl <const BUF_SIZE: usize> Default for FFT<BUF_SIZE> {
+impl Default for FFT {
   fn default() -> Self {
     Self {
       planner: FftPlanner::new(),
-      buf: [0.; BUF_SIZE],
+      buf: [0.; 16384],
     }
   }
 }
