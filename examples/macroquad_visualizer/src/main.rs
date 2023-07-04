@@ -3,16 +3,11 @@
 use std::{
   default::default,
   f32::consts::TAU,
-  hint::black_box,
-  sync::{
-    atomic::{AtomicU64, AtomicUsize, Ordering},
-    Arc, Mutex,
-  },
-  time::Duration,
+  sync::{Arc, Mutex, RwLock},
 };
 
 use egui_macroquad::egui::{ComboBox, Slider, Ui, Widget, Window};
-use macroquad::prelude::*;
+use macroquad::{color::hsl_to_rgb, prelude::*};
 
 use safav::{AudioData, AudioListener, Host, FFT};
 
@@ -33,6 +28,8 @@ async fn main() {
 #[derive(Debug)]
 struct Settings {
   is_fft: bool,
+  is_line: bool,
+  is_rgb: bool,
   fft_size: usize,
   fft_scale: f32,
   wave_scale: f32,
@@ -45,6 +42,8 @@ impl Default for Settings {
   fn default() -> Self {
     Self {
       is_fft: true,
+      is_line: false,
+      is_rgb: false,
       fft_size: 16384,
       fft_scale: 100.,
       wave_scale: 100.,
@@ -55,29 +54,42 @@ impl Default for Settings {
   }
 }
 
-fn visualize(listener: &AudioListener<CustomData>, settings: &Settings) {
-  let audio = listener.poll();
-
-  let (audio, scale) = if settings.is_fft {
-    let audio = audio.fft.clone();
-    let start = settings.trim.clamp(0, audio.len());
-    let end = (audio.len() - settings.trim).clamp(start, audio.len());
-    let trim = &audio[start..end];
-
-    (Vec::from(trim), settings.fft_scale)
+fn color(is_rgb: bool, index: f32, size: f32) -> Color {
+  if is_rgb {
+    hsl_to_rgb((1f32 / size) * index, 1f32, 0.5f32)
   } else {
-    (audio.wave.clone(), settings.wave_scale)
-  };
+    Color::from_rgba(230, 230, 230, 255)
+  }
+}
 
+fn line(audio: &[f32], scale: f32, is_rgb: bool) {
   let len = audio.len();
+  let width = screen_width() / len as f32;
+  let center_h = screen_height() / 2f32;
 
+  for i in 0..len {
+    let value = audio[i] * scale;
+
+    draw_line(
+      width * i as f32,
+      center_h - (value / 2f32),
+      width * i as f32,
+      center_h + (value / 2f32),
+      width,
+      color(is_rgb, i as f32, len as f32),
+    );
+  }
+}
+
+fn circle(audio: &[f32], scale: f32, radius: f32, is_rgb: bool) {
+  let len = audio.len();
   let center_w = screen_width() / 2f32;
   let center_h = screen_height() / 2f32;
 
   for i in 0..len {
     let value = audio[i] * scale;
     let theta = (TAU / len as f32) * i as f32;
-    let radius = settings.radius;
+    let radius = radius;
 
     let x_inner = center_w + (radius - value) * theta.sin();
     let y_inner = center_h - (radius - value) * theta.cos();
@@ -90,13 +102,38 @@ fn visualize(listener: &AudioListener<CustomData>, settings: &Settings) {
       x_outer,
       y_outer,
       2.,
-      Color::from_rgba(230, 230, 230, 255),
+      color(is_rgb, i as f32, len as f32),
     );
+  }
+}
+
+fn visualize(listener: &AudioListener<CustomData>, settings: &Settings) {
+  let audio = listener.poll();
+
+  let (audio, scale) = if settings.is_fft {
+    audio.set_size(settings.fft_size);
+
+    let audio = audio.fft.clone();
+    let start = settings.trim.clamp(0, audio.len());
+    let end = (audio.len() - settings.trim).clamp(start, audio.len());
+    let trim = &audio[start..end];
+
+    (Vec::from(trim), settings.fft_scale)
+  } else {
+    (audio.wave.clone(), settings.wave_scale)
+  };
+
+  if settings.is_line {
+    line(&audio, scale, settings.is_rgb);
+  } else {
+    circle(&audio, scale, settings.radius, settings.is_rgb);
   }
 }
 
 fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
   ui.checkbox(&mut settings.is_fft, "FFT");
+  ui.checkbox(&mut settings.is_line, "Line");
+  ui.checkbox(&mut settings.is_rgb, "RGB");
 
   if settings.is_fft {
     Slider::new(&mut settings.fft_size, 32..=16384)
@@ -122,15 +159,12 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
       .ui(ui);
   }
 
-  Slider::new(&mut settings.radius, 1.0..=500.0)
-    .text("Radius")
-    .step_by(5.0)
-    .ui(ui);
-
-  Slider::new(unsafe { &mut TIME }, 1..=1000)
-    .text("Time")
-    .step_by(5.0)
-    .ui(ui);
+  if !settings.is_line {
+    Slider::new(&mut settings.radius, 1.0..=500.0)
+      .text("Radius")
+      .step_by(5.0)
+      .ui(ui);
+  }
 
   ComboBox::from_label("Devices")
     .selected_text("Devices")
@@ -177,34 +211,39 @@ async fn _main() -> safav::Result<!> {
 #[derive(Clone, Debug)]
 struct CustomData {
   planner: Arc<Mutex<FFT>>,
+  size: Arc<RwLock<usize>>,
   wave: Vec<f32>,
   fft: Vec<f32>,
+}
+
+impl CustomData {
+  fn set_size(&self, size: usize) {
+    *self.size.write().unwrap() = size.clamp(32, 16384);
+  }
 }
 
 impl Default for CustomData {
   fn default() -> Self {
     Self {
       planner: Default::default(),
+      size: Arc::new(RwLock::new(16384)),
       fft: Vec::with_capacity(16384),
       wave: Vec::with_capacity(16384),
     }
   }
 }
 
-static mut TIME: u64 = 1;
-
 impl AudioData for CustomData {
   fn update(&mut self, data: &[f32]) {
     let mut fft = self.planner.lock().unwrap();
+    let size = *self.size.read().unwrap();
 
     self.wave.resize(data.len(), 0.);
     self.wave.copy_from_slice(data);
 
-    let data = fft.process(data, 16384);
+    let data = fft.process(data, size);
 
-    self.fft.resize(16384, 0.);
+    self.fft.resize(size, 0.);
     self.fft.copy_from_slice(data);
-
-    std::thread::sleep(Duration::from_millis(unsafe { TIME }));
   }
 }
