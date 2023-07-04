@@ -1,11 +1,20 @@
 #![feature(never_type, default_free_fn)]
 
-use std::{default::default, f32::consts::TAU};
+use std::{
+  default::default,
+  f32::consts::TAU,
+  hint::black_box,
+  sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    Arc, Mutex,
+  },
+  time::Duration,
+};
 
 use egui_macroquad::egui::{ComboBox, Slider, Ui, Widget, Window};
 use macroquad::prelude::*;
 
-use safav::{Host, Listener, FFT, AudioListener};
+use safav::{AudioData, AudioListener, Host, FFT};
 
 fn conf() -> Conf {
   Conf {
@@ -46,18 +55,18 @@ impl Default for Settings {
   }
 }
 
-fn visualize(listener: &AudioListener<Vec<f32>>, settings: &Settings, fft: &mut FFT) {
-  let audio = listener.poll().clone();
+fn visualize(listener: &AudioListener<CustomData>, settings: &Settings) {
+  let audio = listener.poll();
 
   let (audio, scale) = if settings.is_fft {
-    let audio = fft.process(&audio, settings.fft_size);
+    let audio = audio.fft.clone();
     let start = settings.trim.clamp(0, audio.len());
     let end = (audio.len() - settings.trim).clamp(start, audio.len());
     let trim = &audio[start..end];
 
     (Vec::from(trim), settings.fft_scale)
   } else {
-    (audio, settings.wave_scale)
+    (audio.wave.clone(), settings.wave_scale)
   };
 
   let len = audio.len();
@@ -118,6 +127,11 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
     .step_by(5.0)
     .ui(ui);
 
+  Slider::new(unsafe { &mut TIME }, 1..=1000)
+    .text("Time")
+    .step_by(5.0)
+    .ui(ui);
+
   ComboBox::from_label("Devices")
     .selected_text("Devices")
     .width(200.0)
@@ -139,7 +153,6 @@ fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
 async fn _main() -> safav::Result<!> {
   let mut settings = Settings::default();
   let mut host = Host::new()?;
-  let mut fft = FFT::default();
   let listener = host.create_listener();
 
   host.listen()?;
@@ -153,10 +166,45 @@ async fn _main() -> safav::Result<!> {
         .show(ctx, |ui| self::ui(ui, &mut settings, &host));
     });
 
-    visualize(&listener, &settings, &mut fft);
+    visualize(&listener, &settings);
 
     egui_macroquad::draw();
 
     next_frame().await;
+  }
+}
+
+#[derive(Clone, Debug)]
+struct CustomData {
+  planner: Arc<Mutex<FFT>>,
+  wave: Vec<f32>,
+  fft: Vec<f32>,
+}
+
+impl Default for CustomData {
+  fn default() -> Self {
+    Self {
+      planner: Default::default(),
+      fft: Vec::with_capacity(16384),
+      wave: Vec::with_capacity(16384),
+    }
+  }
+}
+
+static mut TIME: u64 = 1;
+
+impl AudioData for CustomData {
+  fn update(&mut self, data: &[f32]) {
+    let mut fft = self.planner.lock().unwrap();
+
+    self.wave.resize(data.len(), 0.);
+    self.wave.copy_from_slice(data);
+
+    let data = fft.process(data, 16384);
+
+    self.fft.resize(16384, 0.);
+    self.fft.copy_from_slice(data);
+
+    std::thread::sleep(Duration::from_millis(unsafe { TIME }));
   }
 }

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::{AudioData, AudioListener, Listener, Result};
+use crate::{AudioData, AudioListener, Result};
 
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;

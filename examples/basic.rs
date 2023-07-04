@@ -61,9 +61,9 @@ fn main() -> safav::Result<()> {
   Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct CustomData {
-  fft: Mutex<FFT>,
+  fft: Arc<Mutex<FFT>>,
   data: Vec<f32>,
 }
 
