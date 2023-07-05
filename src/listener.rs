@@ -4,7 +4,10 @@ use std::{
   any::TypeId,
   collections::{hash_map::Entry, HashMap},
   fmt::Debug,
-  sync::{Arc, RwLock, RwLockReadGuard, TryLockError},
+  sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering}, RwLock, RwLockReadGuard, RwLockWriteGuard,
+  },
 };
 
 pub use cpal::InputCallbackInfo;
@@ -38,9 +41,7 @@ impl AudioData for Vec<f32> {
 }
 
 pub(crate) trait AudioListenerTrait: Downcast + Send + Sync + Debug + 'static {
-  fn update(&mut self, data: &[f32]);
-
-  fn clone_box(&self) -> Box<dyn AudioListenerTrait>;
+  fn update(&self, data: &[f32]);
 }
 
 impl_downcast!(AudioListenerTrait);
@@ -48,28 +49,36 @@ impl_downcast!(AudioListenerTrait);
 #[derive(Debug)]
 pub struct AudioListener<T = Vec<f32>> {
   handle: Arc<RwLock<T>>,
-  backup: Arc<RwLock<T>>,
+  modify: Arc<RwLock<T>>,
+  marked: Arc<AtomicBool>,
 }
 
 impl<T: AudioData> AudioListener<T> {
   fn new() -> Self {
     Self {
       handle: Default::default(),
-      backup: Default::default(),
+      modify: Default::default(),
+      marked: Default::default(),
     }
   }
 
   pub fn poll(&self) -> RwLockReadGuard<T> {
-    match self.handle.try_read() {
-      Ok(data) => {
-        *self.backup.write().unwrap() = data.clone();
-        data
-      }
-      Err(TryLockError::WouldBlock) => self.backup.read().unwrap(),
-      Err(TryLockError::Poisoned(err)) => {
-        panic!("{err}")
-      }
+    if self.marked.load(Ordering::SeqCst) {
+      *self.handle.write().unwrap() = self.modify.read().unwrap().clone();
+
+      self.marked.store(false, Ordering::SeqCst)
     }
+
+    self.handle.read().unwrap()
+  }
+
+  pub fn poll_mut(&self) -> RwLockWriteGuard<T> {
+    let mut data = self.modify.write().unwrap();
+
+    *data = self.handle.read().unwrap().clone();
+    self.marked.store(true, Ordering::SeqCst);
+
+    data
   }
 }
 
@@ -77,28 +86,25 @@ impl<T: AudioData> Clone for AudioListener<T> {
   fn clone(&self) -> Self {
     Self {
       handle: self.handle.clone(),
-      backup: self.backup.clone(),
+      modify: self.modify.clone(),
+      marked: self.marked.clone(),
     }
   }
 }
 
 impl<T: AudioData> AudioListenerTrait for AudioListener<T> {
-  fn update(&mut self, data: &[f32]) {
+  fn update(&self, data: &[f32]) {
     let mut handle = self.handle.read().unwrap().clone();
 
     handle.update(data);
 
     *self.handle.write().unwrap() = handle;
   }
-
-  fn clone_box(&self) -> Box<dyn AudioListenerTrait> {
-    Box::new(self.clone())
-  }
 }
 
 #[derive(Debug, Clone)]
 pub struct Listener {
-  handles: Arc<RwLock<HashMap<TypeId, Arc<RwLock<Box<dyn AudioListenerTrait>>>>>>,
+  handles: Arc<RwLock<HashMap<TypeId, Box<dyn AudioListenerTrait>>>>,
 }
 
 impl Listener {
@@ -112,11 +118,11 @@ impl Listener {
     let id = TypeId::of::<T>();
 
     if let Entry::Vacant(e) = self.handles.write().unwrap().entry(id) {
-      e.insert(Arc::new(RwLock::new(Box::new(AudioListener::<T>::new()))));
+      e.insert(Box::new(AudioListener::<T>::new()));
     }
 
     let value = self.handles.read().unwrap();
-    let value = value[&id].read().unwrap();
+    let value = &value[&id];
     let value = value.downcast_ref::<AudioListener<T>>().unwrap();
 
     value.clone()
@@ -127,7 +133,6 @@ impl Listener {
 
     DataCallback::new(move |data: &[f32], _: &_| {
       for handle in handles.read().unwrap().values() {
-        let mut handle = handle.read().unwrap().clone_box();
         handle.update(data);
       }
     })

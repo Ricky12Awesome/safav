@@ -1,23 +1,11 @@
-use std::{
-  any::type_name,
-  fmt::{Debug, Formatter},
-};
-
 use dasp::window::{Hanning, Window};
-use rustfft::{num_complex::Complex32, num_traits::Zero, FftPlanner};
+use rustfft::{FftPlanner, num_complex::Complex32, num_traits::Zero};
 
+#[derive(custom_debug::Debug)]
 pub struct FFT<const BUF_SIZE: usize = 16384> {
+  #[debug(skip)]
   planner: FftPlanner<f32>,
   buf: [f32; BUF_SIZE],
-}
-
-impl <const BUF_SIZE: usize> Debug for FFT<BUF_SIZE> {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct(type_name::<Self>())
-      .field("planner", &"<no debug info>")
-      .field("buf", &self.buf)
-      .finish()
-  }
 }
 
 impl Default for FFT {
@@ -48,8 +36,10 @@ impl<const BUF_SIZE: usize> FFT<BUF_SIZE> {
     let mut buffer = [Complex32::zero(); BUF_SIZE];
 
     if buf.len() > size {
+      let chunk_size = (buf.len() as f64 / size as f64).floor() as usize;
+
       let mut bins = buf
-        .chunks((buf.len() as f64 / size as f64).floor() as usize)
+        .chunks(chunk_size)
         .map(|chunk: &[f32]| {
           chunk.iter().copied().map(Hanning::window).sum::<f32>() / chunk.len() as f32
         })
