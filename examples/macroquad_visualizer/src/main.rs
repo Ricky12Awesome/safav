@@ -323,8 +323,7 @@ impl Default for CustomData {
 
 impl AudioData for CustomData {
   fn update(&mut self, data: &[f32]) {
-    self.wave.resize(data.len(), 0.);
-    self.wave.copy_from_slice(data);
+    self.wave.update(data);
 
     let mut fft = self.planner.lock().unwrap();
     let data = fft.process(data, self.fft_size);

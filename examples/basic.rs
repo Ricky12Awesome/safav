@@ -1,9 +1,9 @@
 use std::{
-  sync::{Arc, Mutex, TryLockError, TryLockResult},
+  sync::{Arc, Mutex},
   time::{Duration, Instant},
 };
 
-use safav::{AudioData, Host, FFT};
+use safav::{AudioData, FFT, Host};
 
 fn main() -> safav::Result<()> {
   let mut host = Host::new()?;
