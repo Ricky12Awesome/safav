@@ -7,11 +7,14 @@ edition = "2021"
 
 [dependencies]
 
-[dependencies.egui-macroquad]
-path = "../../../egui-macroquad"
+[dependencies.alloc-tracker]
+path = "../../../simple_memory_tracker"
+
+[dependencies.imgui-macroquad]
+git = "https://github.com/Ricky12Awesome/imgui_macroquad"
 
 [dependencies.macroquad]
-version = "0.3.25"
+version = "0.4.4"
 default-features = false
 features = ["log"]
 

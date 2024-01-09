@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 safav = { path = "../.." }
-inquire = "0.5.2"
-colored = "2.0.0"
-palette = "0.6.1"
-termsize = "0.1.6"
+inquire = "^0.6"
+colored = "^2.0"
+palette = "^0.7"
+termsize = "^0.1"

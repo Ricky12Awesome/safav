@@ -1,22 +1,26 @@
-#![feature(never_type, default_free_fn)]
+#![feature(never_type)]
 
 use std::{
-  default::default,
+  alloc::System,
   f32::consts::TAU,
   sync::{Arc, Mutex},
 };
 
-use egui_macroquad::egui::{CollapsingHeader, ComboBox, Slider, Ui, Widget, Window};
+use alloc_tracker::{total_bytes_used, GlobalAllocTracker};
+use imgui_macroquad::imgui::{Condition, SliderFlags, TreeNodeFlags, Ui};
 use macroquad::{color::hsl_to_rgb, prelude::*};
 
 use safav::{AudioData, AudioListener, Host, FFT};
+
+#[global_allocator]
+static ALLOCATOR: GlobalAllocTracker<System> = GlobalAllocTracker::new(System);
 
 fn conf() -> Conf {
   Conf {
     window_title: String::from("Macroquad Visualizer Example"),
     window_width: 1000,
     window_height: 1000,
-    ..default()
+    ..Default::default()
   }
 }
 
@@ -104,7 +108,7 @@ fn circle(audio: &[f32], (offset_x, offset_y): (f32, f32), scale: f32, radius: f
   for i in 0..len {
     let value = audio[i] * scale;
     let theta = (TAU / len as f32) * i as f32;
-    let radius = radius;
+    // let radius = radius;
 
     let x_inner = center_w + (radius - value) * theta.sin();
     let y_inner = center_h - (radius - value) * theta.cos();
@@ -156,108 +160,85 @@ fn visualize(listener: &AudioListener<CustomData>, settings: &Settings) {
   }
 }
 
-fn ui(ui: &mut Ui, settings: &mut Settings, host: &Host) {
-  ui.checkbox(&mut settings.is_rgb, "RGB");
+fn ui(ui: &Ui, settings: &mut Settings, host: &Host) {
+  ui.text(format!("Memory Usage: {} MB", total_bytes_used() / 1000000));
+  ui.checkbox("RGB", &mut settings.is_rgb);
 
   let x_cap = screen_width() / 2.;
   let y_cap = screen_height() / 2.;
 
-  CollapsingHeader::new("Circle")
-    .default_open(true)
-    .show(ui, |ui| {
-      ui.checkbox(&mut settings.is_circle, "Enabled");
+  if ui.collapsing_header("Circle", TreeNodeFlags::DEFAULT_OPEN) {
+    ui.checkbox("Circle Enabled", &mut settings.is_circle);
 
-      Slider::new(&mut settings.circle_scale, 0.01..=5.0)
-        .text("Scale")
-        .step_by(0.05)
-        .ui(ui);
+    ui.slider("Circle Scale", 0.01, 5.0, &mut settings.circle_scale);
+    ui.slider(
+      "Circle Offset X",
+      -x_cap,
+      x_cap,
+      &mut settings.circle_offset.0,
+    );
+    ui.slider(
+      "Circle Offset Y",
+      -y_cap,
+      y_cap,
+      &mut settings.circle_offset.1,
+    );
+    ui.slider("Circle Radius", 1., x_cap.min(y_cap), &mut settings.radius);
+  }
 
-      Slider::new(&mut settings.circle_offset.0, -x_cap..=x_cap)
-        .text("Offset X")
-        .step_by(5.0)
-        .ui(ui);
+  if ui.collapsing_header("Line", TreeNodeFlags::DEFAULT_OPEN) {
+    ui.checkbox("Line Enabled", &mut settings.is_line);
 
-      Slider::new(&mut settings.circle_offset.1, -y_cap..=y_cap)
-        .text("Offset Y")
-        .step_by(5.0)
-        .ui(ui);
+    ui.slider("Line Scale", 0.01, 5.0, &mut settings.line_scale);
+    ui.slider("Line Offset X", -x_cap, x_cap, &mut settings.line_offset.0);
+    ui.slider("Line Offset Y", -y_cap, y_cap, &mut settings.line_offset.1);
+  }
 
-      Slider::new(&mut settings.radius, 1.0..=x_cap.min(y_cap))
-        .text("Radius")
-        .step_by(5.0)
-        .ui(ui);
-    });
+  if ui.collapsing_header("FFT", TreeNodeFlags::DEFAULT_OPEN) {
+    ui.checkbox("Enabled (overrides waveform)", &mut settings.is_fft);
 
-  CollapsingHeader::new("Line")
-    .default_open(true)
-    .show(ui, |ui| {
-      ui.checkbox(&mut settings.is_line, "Enabled");
+    ui.slider_config("FFT Size", 32, 16384)
+      .flags(SliderFlags::ALWAYS_CLAMP)
+      .build(&mut settings.fft_size);
 
-      Slider::new(&mut settings.line_scale, 0.01..=5.0)
-        .text("Scale")
-        .step_by(0.05)
-        .ui(ui);
+    ui.slider("FFT Scale", 1., 3000., &mut settings.fft_scale);
+    ui.slider("FFT Trim", 0, settings.fft_size / 4, &mut settings.trim);
+    ui.slider("FFT Offset X", -x_cap, x_cap, &mut settings.line_offset.0);
+    ui.slider("FFT Offset Y", -y_cap, y_cap, &mut settings.line_offset.1);
+  }
 
-      Slider::new(&mut settings.line_offset.0, -x_cap..=x_cap)
-        .text("Offset X")
-        .step_by(5.0)
-        .ui(ui);
-
-      Slider::new(&mut settings.line_offset.1, -y_cap..=y_cap)
-        .text("Offset Y")
-        .step_by(5.0)
-        .ui(ui);
-    });
-
-  CollapsingHeader::new("FFT")
-    .default_open(true)
-    .show(ui, |ui| {
-      ui.checkbox(&mut settings.is_fft, "Enabled (overrides waveform)");
-
-      Slider::new(&mut settings.fft_size, 32..=16384)
-        .text("FFT Size")
-        .logarithmic(true)
-        .step_by(16.)
-        .ui(ui);
-
-      Slider::new(&mut settings.fft_scale, 1.0..=3000.0)
-        .text("FFT Scale")
-        .step_by(5.)
-        .ui(ui);
-
-      Slider::new(&mut settings.trim, 0..=settings.fft_size / 4)
-        .text("Trim")
-        .logarithmic(true)
-        .step_by(1.0)
-        .ui(ui);
-    });
-
-  CollapsingHeader::new("Waveform")
-    .default_open(true)
-    .show(ui, |ui| {
-      Slider::new(&mut settings.wave_scale, 1.0..=3500.0)
-        .text("Wave Scale")
-        .step_by(5.0)
-        .ui(ui);
-    });
+  if ui.collapsing_header("Waveform", TreeNodeFlags::DEFAULT_OPEN) {
+    ui.slider("Wave Scale", 1., 3500., &mut settings.wave_scale);
+  }
 
   let devices = host.devices();
 
-  ComboBox::from_label("Devices")
-    .selected_text(format!("{:.28}", devices[settings.current_device].name()))
-    .width(200.0)
-    .show_ui(ui, |ui| {
-      let mut changed = settings.current_device;
+  let combo = ui.begin_combo("Devices", devices[settings.current_device].name());
 
-      for (index, device) in devices.iter().enumerate() {
-        ui.selectable_value(&mut changed, index, device.name());
+  if let Some(combo) = combo {
+    let mut selected = settings.current_device;
+
+    for (index, device) in devices.iter().enumerate() {
+      if index == selected {
+        ui.set_item_default_focus();
       }
 
-      if changed != settings.current_device {
-        settings.current_device = changed;
-        host.change_device_by_index(changed).unwrap();
+      if ui
+        .selectable_config(device.name())
+        .selected(index == selected)
+        .build()
+      {
+        selected = index;
       }
-    });
+    }
+
+    if selected != settings.current_device {
+      settings.current_device = selected;
+      host.change_device_by_index(selected).unwrap();
+    }
+
+    combo.end();
+  }
 }
 
 fn update(listener: &AudioListener<CustomData>, settings: &Settings) {
@@ -272,6 +253,7 @@ fn update(listener: &AudioListener<CustomData>, settings: &Settings) {
 async fn _main() -> safav::Result<!> {
   let mut settings = Settings::default();
   let mut host = Host::new()?;
+  let imgui = imgui_macroquad::get_imgui_context();
   let listener = host.create_listener();
 
   host.listen()?;
@@ -279,16 +261,19 @@ async fn _main() -> safav::Result<!> {
   loop {
     clear_background(Color::from_rgba(32, 32, 32, 255));
 
-    egui_macroquad::ui(|ctx| {
-      Window::new("Settings")
-        .resizable(true)
-        .show(ctx, |ui| self::ui(ui, &mut settings, &host));
+    imgui.setup_event_handler();
+
+    imgui.ui(|ui| {
+      ui.window("Settings")
+        .size([300., 600.], Condition::FirstUseEver)
+        .position([20., 20.], Condition::FirstUseEver)
+        .build(|| self::ui(ui, &mut settings, &host));
     });
 
     update(&listener, &settings);
     visualize(&listener, &settings);
 
-    egui_macroquad::draw();
+    imgui.draw();
 
     next_frame().await;
   }
@@ -304,6 +289,7 @@ struct CustomData {
   fft_size: usize,
 }
 
+#[allow(unused)]
 impl CustomData {
   fn set_size(&mut self, size: usize) {
     self.fft_size = size;

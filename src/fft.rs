@@ -2,23 +2,17 @@ use dasp::window::{Hanning, Window};
 use rustfft::{FftPlanner, num_complex::Complex32, num_traits::Zero};
 
 #[derive(custom_debug::Debug)]
-pub struct FFT<const BUF_SIZE: usize = 16384> {
+pub struct FFT<const BUF_SIZE: usize = 16384>  {
   #[debug(skip)]
   planner: FftPlanner<f32>,
-  zeros: [Complex32; BUF_SIZE],
-  buffer: [Complex32; BUF_SIZE],
-  scratch: [Complex32; BUF_SIZE],
-  data: [f32; BUF_SIZE],
+  data: Vec<f32>,
 }
 
-impl Default for FFT {
+impl Default for FFT<16384> {
   fn default() -> Self {
     Self {
       planner: FftPlanner::new(),
-      zeros: [Complex32::zero(); 16384],
-      buffer: [Complex32::zero(); 16384],
-      scratch: [Complex32::zero(); 16384],
-      data: [0.; 16384],
+      data: vec![0.; 16384],
     }
   }
 }
@@ -27,10 +21,7 @@ impl<const BUF_SIZE: usize> FFT<BUF_SIZE> {
   pub fn new() -> Self {
     Self {
       planner: FftPlanner::new(),
-      zeros: [Complex32::zero(); BUF_SIZE],
-      buffer: [Complex32::zero(); BUF_SIZE],
-      scratch: [Complex32::zero(); BUF_SIZE],
-      data: [0.; BUF_SIZE],
+      data: vec![0.; BUF_SIZE],
     }
   }
 
@@ -39,7 +30,10 @@ impl<const BUF_SIZE: usize> FFT<BUF_SIZE> {
       panic!("{size} is higher then max buf size of {BUF_SIZE}")
     }
 
-    self.buffer[..size].copy_from_slice(&self.zeros[..size]);
+    let mut buffer = vec![Complex32::zero(); size * 2];
+    let mut scratch = vec![Complex32::zero(); size * 2];
+
+    buffer[..size].copy_from_slice(&vec![Complex32::zero(); size][..size]);
 
     if buf.len() > size {
       let chunk_size = (buf.len() as f64 / size as f64).floor() as usize;
@@ -52,22 +46,28 @@ impl<const BUF_SIZE: usize> FFT<BUF_SIZE> {
         .map(Complex32::from);
 
       for i in 0..size {
-        self.buffer[i] = bins.next().unwrap_or_default();
+        buffer[i] = bins.next().unwrap_or_default();
       }
     } else {
       for i in 0..buf.len().min(size) {
         let value = Hanning::window(buf[i]);
-        self.buffer[i] = Complex32::from(value);
+        buffer[i] = Complex32::from(value);
       }
     }
 
     let max = (size as f32).sqrt();
     let fft = self.planner.plan_fft_forward(size);
 
-    fft.process_with_scratch(&mut self.buffer[..size], &mut self.scratch[..fft.get_inplace_scratch_len()]);
+    let scratch_len = fft.get_inplace_scratch_len();
+
+    if scratch_len >= scratch.len() {
+      scratch.resize(scratch_len, Complex32::zero());
+    }
+
+    fft.process_with_scratch(&mut buffer[..size], &mut scratch[..scratch_len]);
 
     for i in 0..size {
-      self.data[i] = self.buffer[i].re / max;
+      self.data[i] = buffer[i].re / max;
     }
 
     &self.data[..size]
